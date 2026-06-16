@@ -9,14 +9,16 @@ The agent loop will receive a list of tools and execute requested calls without 
 
 ## Initial coding tools
 
-`tau_coding` will eventually provide:
+`tau_coding` now provides the initial coding tool set:
 
 - `read`
 - `write`
 - `edit`
 - `bash`
 
-Important behavior to preserve:
+Use `create_coding_tools()` to register all of them, or create individual tools with `create_read_tool()`, `create_write_tool()`, `create_edit_tool()`, and `create_bash_tool()`.
+
+Important behavior preserved from Pi:
 
 - exact-text replacement for edits
 - rollback if a multi-edit operation fails
