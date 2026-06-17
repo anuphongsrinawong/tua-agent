@@ -170,6 +170,7 @@ The built-in configurable action names are:
 
 - `cancel`
 - `command_palette`
+- `session_picker`
 - `accept_completion`
 - `completion_next`
 - `completion_previous`

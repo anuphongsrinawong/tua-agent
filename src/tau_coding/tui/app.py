@@ -1,5 +1,6 @@
 """Minimal Textual app for Tau coding sessions."""
 
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, ClassVar, Protocol, cast
 
@@ -7,7 +8,8 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding, BindingsMap
 from textual.containers import Horizontal, Vertical
 from textual.events import Key
-from textual.widgets import Footer, Header, Input, Static
+from textual.screen import ModalScreen
+from textual.widgets import Footer, Header, Input, Label, ListItem, ListView, Static
 from textual.worker import Worker
 
 from tau_ai import OpenAICompatibleProvider
@@ -38,6 +40,8 @@ class CompletionActionTarget(Protocol):
     def action_completion_previous(self) -> None: ...
 
     def action_open_command_palette(self) -> None: ...
+
+    def action_open_session_picker(self) -> None: ...
 
 
 class SessionCompletionRecord(Protocol):
@@ -82,6 +86,10 @@ class PromptInput(Input):
         """Open the app-level command palette."""
         self._completion_target().action_open_command_palette()
 
+    def action_open_session_picker(self) -> None:
+        """Open the app-level session picker."""
+        self._completion_target().action_open_session_picker()
+
     def action_scroll_down(self) -> None:
         """Use down arrow for completion selection while focused."""
         self._completion_target().action_completion_next()
@@ -99,6 +107,9 @@ class PromptInput(Input):
         elif event.key == keybindings.command_palette:
             event.stop()
             self._completion_target().action_open_command_palette()
+        elif event.key == keybindings.session_picker:
+            event.stop()
+            self._completion_target().action_open_session_picker()
         elif event.key == keybindings.completion_next:
             event.stop()
             self._completion_target().action_completion_next()
@@ -108,6 +119,45 @@ class PromptInput(Input):
 
     def _completion_target(self) -> CompletionActionTarget:
         return cast(CompletionActionTarget, self.app)
+
+
+class SessionPickerScreen(ModalScreen[str | None]):
+    """Minimal modal picker for indexed sessions."""
+
+    BINDINGS: ClassVar[list[BindingEntry]] = [
+        Binding("escape", "cancel", "Cancel"),
+    ]
+
+    def __init__(
+        self,
+        records: Sequence[SessionCompletionRecord],
+        *,
+        theme: TuiTheme,
+    ) -> None:
+        super().__init__()
+        self.records = tuple(records)
+        self.theme = theme
+
+    def compose(self) -> ComposeResult:
+        """Compose the session picker."""
+        with Vertical(id="session-picker"):
+            yield Static("Sessions", id="session-picker-title")
+            yield ListView(
+                *[
+                    ListItem(Label(_session_picker_label(record), markup=False))
+                    for record in self.records
+                ],
+                id="session-picker-list",
+            )
+            yield Static("Enter resumes - Escape closes", id="session-picker-help")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Dismiss with the selected session id."""
+        self.dismiss(self.records[event.index].id)
+
+    def action_cancel(self) -> None:
+        """Close the picker without selecting a session."""
+        self.dismiss(None)
 
 
 class TauTuiApp(App[None]):
@@ -178,6 +228,40 @@ class TauTuiApp(App[None]):
         background: $tau-autocomplete-background;
         color: $tau-screen-text;
         border: tall $tau-border;
+    }
+
+    SessionPickerScreen {
+        align: center middle;
+    }
+
+    #session-picker {
+        width: 76;
+        max-width: 90%;
+        height: auto;
+        max-height: 70%;
+        padding: 1 2;
+        background: $tau-chrome-background;
+        border: round $tau-border;
+    }
+
+    #session-picker-title {
+        height: 1;
+        color: $tau-chrome-text;
+        text-style: bold;
+        margin-bottom: 1;
+    }
+
+    #session-picker-list {
+        height: auto;
+        max-height: 16;
+        background: $tau-transcript-background;
+        border: tall $tau-border;
+    }
+
+    #session-picker-help {
+        height: 1;
+        margin-top: 1;
+        color: $tau-muted-text;
     }
     """
     BINDINGS: ClassVar[list[BindingEntry]] = []
@@ -258,13 +342,7 @@ class TauTuiApp(App[None]):
                 except Exception as exc:  # noqa: BLE001 - surface command failures in the TUI
                     self.state.add_item("error", f"Error: {exc}")
             if command.resume_session_id is not None:
-                try:
-                    resume_message = await self.session.resume(command.resume_session_id)
-                    self.state.clear()
-                    self.state.load_messages(self.session.messages)
-                    self.state.add_item("status", resume_message)
-                except Exception as exc:  # noqa: BLE001 - surface command failures in the TUI
-                    self.state.add_item("error", f"Error: {exc}")
+                await self._resume_session(command.resume_session_id)
             if command.message:
                 self.state.add_item("status", command.message)
             self._refresh()
@@ -336,6 +414,37 @@ class TauTuiApp(App[None]):
         self._completion_state = self._build_completion_state(prompt.value)
         self._refresh_completions()
 
+    def action_open_session_picker(self) -> None:
+        """Open the indexed session picker."""
+        if self.state.running:
+            self.state.add_item("status", "Tau is already working. Press Escape to cancel.")
+            self._refresh()
+            return
+        records = _session_records(self.session)
+        if not records:
+            self.state.add_item("status", "No sessions found.")
+            self._refresh()
+            return
+        self.push_screen(
+            SessionPickerScreen(records, theme=self.tui_settings.resolved_theme),
+            callback=self._handle_session_picker_result,
+        )
+
+    def _handle_session_picker_result(self, session_id: str | None) -> None:
+        if session_id is None:
+            return
+        self.run_worker(self._resume_session(session_id), exclusive=False)
+
+    async def _resume_session(self, session_id: str) -> None:
+        try:
+            resume_message = await self.session.resume(session_id)
+            self.state.clear()
+            self.state.load_messages(self.session.messages)
+            self.state.add_item("status", resume_message)
+        except Exception as exc:  # noqa: BLE001 - surface command failures in the TUI
+            self.state.add_item("error", f"Error: {exc}")
+        self._refresh()
+
     def _refresh(self) -> None:
         theme = self.tui_settings.resolved_theme
         sidebar = self.query_one("#sidebar", SessionSidebar)
@@ -376,10 +485,14 @@ def _session_command_registry(session: CodingSession) -> CommandRegistry:
 
 
 def _session_options(session: CodingSession) -> tuple[CompletionOption, ...]:
+    return tuple(_session_option(record) for record in _session_records(session))
+
+
+def _session_records(session: CodingSession) -> tuple[SessionCompletionRecord, ...]:
     manager = getattr(session, "session_manager", None)
     if manager is None:
         return ()
-    return tuple(_session_option(record) for record in manager.list_sessions())
+    return tuple(manager.list_sessions())
 
 
 def _session_option(record: SessionCompletionRecord) -> CompletionOption:
@@ -396,6 +509,10 @@ def _short_path(path: Path) -> str:
         return f"~/{path.relative_to(home)}"
     except ValueError:
         return str(path)
+
+
+def _session_picker_label(record: SessionCompletionRecord) -> str:
+    return f"{record.id}\n  {_session_option(record).description}"
 
 
 def _theme_css_variables(theme: TuiTheme) -> dict[str, str]:
@@ -419,6 +536,7 @@ def _app_bindings(keybindings: TuiKeybindings) -> list[Binding]:
     return [
         Binding(keybindings.cancel, "cancel", "Cancel"),
         Binding(keybindings.command_palette, "open_command_palette", "Commands"),
+        Binding(keybindings.session_picker, "open_session_picker", "Sessions"),
         Binding(
             keybindings.accept_completion,
             "accept_completion",
@@ -444,6 +562,7 @@ def _app_bindings(keybindings: TuiKeybindings) -> list[Binding]:
 def _prompt_bindings(keybindings: TuiKeybindings) -> list[Binding]:
     return [
         Binding(keybindings.command_palette, "open_command_palette", show=False, priority=True),
+        Binding(keybindings.session_picker, "open_session_picker", show=False, priority=True),
         Binding(keybindings.accept_completion, "accept_completion", show=False, priority=True),
         Binding(keybindings.completion_next, "completion_next", show=False, priority=True),
         Binding(keybindings.completion_previous, "completion_previous", show=False, priority=True),

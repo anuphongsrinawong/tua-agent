@@ -97,6 +97,7 @@ Example:
   "keybindings": {
     "cancel": "escape",
     "command_palette": "ctrl+j",
+    "session_picker": "ctrl+o",
     "accept_completion": "f2",
     "completion_next": "down",
     "completion_previous": "up",

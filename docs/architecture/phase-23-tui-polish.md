@@ -52,10 +52,16 @@ directory while preserving newest-first order from `SessionManager`. Submitting
 the command reloads the selected session through `CodingSession` and rebuilds
 the visible transcript in place.
 
+The TUI also has a small modal session picker bound to `Ctrl+R` by default.
+It lists indexed sessions with the same metadata used by resume completions,
+then resumes the selected session through `CodingSession.resume()`. The picker
+lives entirely in the Textual frontend; the portable harness still has no
+session-selection policy.
+
 The built-in Textual frontend now reads optional keybinding settings from
 `~/.tau/tui.json`. This lets users remap the command palette, completion
-navigation, cancellation, and quit keys while keeping the configuration in
-`tau_coding.tui` instead of the reusable agent harness.
+navigation, session picker, cancellation, and quit keys while keeping the
+configuration in `tau_coding.tui` instead of the reusable agent harness.
 
 The same TUI settings file now supports named built-in themes. `tau-dark`
 remains the default, and `high-contrast` provides a brighter dark palette. Theme
@@ -76,8 +82,9 @@ commands, and rendering.
 
 ## Still deferred
 
-The larger Phase 23 roadmap still includes a richer modal session picker. That
-should remain a separate atomic slice.
+Phase 21 extensions remain intentionally unimplemented. Future polish may add
+more advanced picker surfaces, but the current Phase 23 checklist items now have
+foundational implementations.
 
 ## Tests
 

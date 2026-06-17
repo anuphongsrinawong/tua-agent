@@ -36,6 +36,7 @@ def test_load_tui_settings_reads_keybindings(tmp_path: Path) -> None:
         {
           "keybindings": {
             "command_palette": "ctrl+j",
+            "session_picker": "ctrl+o",
             "accept_completion": "f2"
           },
           "theme": "high-contrast"
@@ -47,6 +48,7 @@ def test_load_tui_settings_reads_keybindings(tmp_path: Path) -> None:
     settings = load_tui_settings(paths)
 
     assert settings.keybindings.command_palette == "ctrl+j"
+    assert settings.keybindings.session_picker == "ctrl+o"
     assert settings.keybindings.accept_completion == "f2"
     assert settings.keybindings.cancel == "escape"
     assert settings.theme == "high-contrast"
@@ -77,11 +79,16 @@ def test_tui_settings_reject_unknown_theme() -> None:
 
 def test_tui_keybindings_serialize_to_json() -> None:
     settings = TuiSettings(
-        keybindings=TuiKeybindings(command_palette="ctrl+j", accept_completion="f2"),
+        keybindings=TuiKeybindings(
+            command_palette="ctrl+j",
+            session_picker="ctrl+o",
+            accept_completion="f2",
+        ),
         theme="high-contrast",
     )
 
     assert settings.to_json()["keybindings"]["command_palette"] == "ctrl+j"
+    assert settings.to_json()["keybindings"]["session_picker"] == "ctrl+o"
     assert settings.to_json()["keybindings"]["accept_completion"] == "f2"
     assert settings.to_json()["theme"] == "high-contrast"
 

@@ -20,7 +20,7 @@ from tau_coding.skills import Skill
 from tau_coding.system_prompt import ProjectContextFile
 from tau_coding.tools import create_coding_tools
 from tau_coding.tui import app as tui_app
-from tau_coding.tui.app import TauTuiApp
+from tau_coding.tui.app import SessionPickerScreen, TauTuiApp
 from tau_coding.tui.config import HIGH_CONTRAST_THEME, TuiKeybindings, TuiSettings
 from tau_coding.tui.state import ChatItem
 from tau_coding.tui.widgets import render_chat_item, render_session_sidebar
@@ -357,6 +357,38 @@ async def test_tui_app_completes_resume_session_argument() -> None:
         await pilot.press("tab")
 
         assert prompt.value == "/resume session-1"
+
+
+@pytest.mark.anyio
+async def test_tui_app_session_picker_resumes_selected_session() -> None:
+    session = FakeSession(messages=[UserMessage(content="Earlier")])
+    session.session_manager = _FakeSessionManager(
+        [
+            CodingSessionRecord(
+                id="session-1",
+                path=Path("/tmp/session-1.jsonl"),
+                cwd=Path("/workspace/project"),
+                model="fake-model",
+                title="Session",
+                created_at=1.0,
+                updated_at=2.0,
+            )
+        ]
+    )
+    app = TauTuiApp(session)
+
+    async with app.run_test() as pilot:
+        await pilot.press("ctrl+r")
+        assert isinstance(app.screen, SessionPickerScreen)
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert session.resumed_session_ids == ["session-1"]
+        assert [(item.role, item.text) for item in app.state.items] == [
+            ("user", "Restored prompt"),
+            ("status", "Resumed session: session-1"),
+        ]
 
 
 @pytest.mark.anyio
