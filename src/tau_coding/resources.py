@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from tau_agent.types import JSONValue
+from tau_coding.paths import TauPaths
 
 
 class ResourceError(ValueError):
@@ -12,19 +13,76 @@ class ResourceError(ValueError):
 
 @dataclass(frozen=True, slots=True)
 class TauResourcePaths:
-    """Filesystem locations for Tau markdown resources."""
+    """Filesystem locations for Tau markdown resources.
+
+    By default Tau loads both Tau-native resources and `.agents` resources from
+    the user home directory. When a cwd is provided, project-local `.tau` and
+    `.agents` resources are loaded automatically as well.
+    """
 
     root: Path = field(default_factory=lambda: Path.home() / ".tau")
+    cwd: Path | None = None
+    agents_root: Path | None = field(default_factory=lambda: Path.home() / ".agents")
+    paths: TauPaths | None = None
 
     @property
     def skills_dir(self) -> Path:
-        """Return the skills directory."""
+        """Return the primary Tau skills directory."""
         return self.root / "skills"
 
     @property
     def prompts_dir(self) -> Path:
-        """Return the prompt templates directory."""
+        """Return the primary Tau prompt templates directory."""
         return self.root / "prompts"
+
+    @property
+    def skills_dirs(self) -> tuple[Path, ...]:
+        """Return skill directories in increasing precedence order."""
+        paths = self._paths()
+        dirs = [self.skills_dir]
+        if self.agents_root is not None:
+            dirs.extend([self.agents_root / "skills", self.agents_root])
+        if self.cwd is not None:
+            dirs.extend(
+                [
+                    paths.project_skills_dir(self.cwd),
+                    paths.project_agents_skills_dir(self.cwd),
+                    paths.project_agents_dir(self.cwd),
+                ]
+            )
+        return tuple(_dedupe_paths(dirs))
+
+    @property
+    def prompts_dirs(self) -> tuple[Path, ...]:
+        """Return prompt template directories in increasing precedence order."""
+        paths = self._paths()
+        dirs = [self.prompts_dir]
+        if self.agents_root is not None:
+            dirs.append(self.agents_root / "prompts")
+        if self.cwd is not None:
+            dirs.extend(
+                [
+                    paths.project_prompts_dir(self.cwd),
+                    paths.project_agents_prompts_dir(self.cwd),
+                ]
+            )
+        return tuple(_dedupe_paths(dirs))
+
+    def _paths(self) -> TauPaths:
+        agents_home = self.agents_root or Path.home() / ".agents"
+        return self.paths or TauPaths(home=self.root, agents_home=agents_home)
+
+
+def _dedupe_paths(paths: list[Path]) -> list[Path]:
+    seen: set[Path] = set()
+    deduped: list[Path] = []
+    for path in paths:
+        resolved = path.expanduser()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        deduped.append(resolved)
+    return deduped
 
 
 def parse_markdown_resource(text: str) -> tuple[dict[str, str], str]:

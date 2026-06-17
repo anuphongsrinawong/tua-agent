@@ -17,6 +17,7 @@ from tau_agent.session import (
 )
 from tau_agent.tools import AgentTool
 from tau_ai import ModelProvider
+from tau_coding.paths import TauPaths
 from tau_coding.prompt_templates import PromptTemplate, load_prompt_templates
 from tau_coding.resources import ResourceError, TauResourcePaths
 from tau_coding.skills import Skill, expand_skill_command, load_skills
@@ -96,7 +97,7 @@ class CodingSession:
             else linear_state
         )
         tools = config.tools if config.tools is not None else create_coding_tools(cwd=config.cwd)
-        resource_paths = config.resource_paths or TauResourcePaths()
+        resource_paths = config.resource_paths or TauResourcePaths(cwd=config.cwd)
         skills = tuple(load_skills(resource_paths))
         prompt_templates = tuple(load_prompt_templates(resource_paths))
         system = (
@@ -244,10 +245,8 @@ def _last_parent_id_from_state(state: SessionState) -> str | None:
 
 
 def default_session_path(cwd: Path) -> Path:
-    """Return Tau's default project-local session path for early TUI phases."""
-    path = cwd / ".tau" / "sessions" / "default.jsonl"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    return path
+    """Return Tau's default user-home session path for a project cwd."""
+    return TauPaths().default_session_path(cwd)
 
 
 def jsonl_session_storage(path: str | Path) -> JsonlSessionStorage:

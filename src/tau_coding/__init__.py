@@ -1,5 +1,6 @@
 """Tau coding-agent application package."""
 
+from tau_coding.paths import TauPaths
 from tau_coding.prompt_templates import (
     PromptTemplate,
     load_prompt_templates,
@@ -61,6 +62,7 @@ __all__ = [
     "PromptTemplate",
     "ResourceError",
     "Skill",
+    "TauPaths",
     "TauResourcePaths",
     "ToolDefinition",
     "TranscriptRenderer",

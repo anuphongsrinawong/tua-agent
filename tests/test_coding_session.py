@@ -222,7 +222,7 @@ async def test_session_builds_system_prompt_when_system_is_omitted(tmp_path: Pat
         model="fake",
         storage=storage,
         cwd=tmp_path,
-        resource_paths=TauResourcePaths(root=resource_root),
+        resource_paths=TauResourcePaths(root=resource_root, agents_root=None),
     )
     session = await CodingSession.load(config)
 
@@ -254,7 +254,7 @@ async def test_session_loads_and_expands_skills(tmp_path: Path) -> None:
         system="You are Tau.",
         storage=storage,
         cwd=tmp_path,
-        resource_paths=TauResourcePaths(root=resource_root),
+        resource_paths=TauResourcePaths(root=resource_root, agents_root=None),
     )
     session = await CodingSession.load(config)
 
