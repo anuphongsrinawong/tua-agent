@@ -279,6 +279,18 @@ async def test_tui_sidebar_is_visible_on_medium_windows() -> None:
 
 
 @pytest.mark.anyio
+async def test_tui_sidebar_fills_workspace_height() -> None:
+    app = TauTuiApp(FakeSession())
+
+    async with app.run_test(size=(120, 30)):
+        workspace = app.query_one("#workspace")
+        sidebar = app.query_one("#sidebar")
+
+        assert sidebar.region.height == workspace.region.height
+        assert sidebar.outer_size.height == workspace.size.height
+
+
+@pytest.mark.anyio
 async def test_tui_sidebar_hides_on_narrow_windows() -> None:
     app = TauTuiApp(FakeSession())
 

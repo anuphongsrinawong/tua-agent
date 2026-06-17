@@ -230,6 +230,7 @@ class TauTuiApp(App[None]):
     #sidebar {
         width: 32;
         min-width: 28;
+        height: 1fr;
         padding: 1 1 0 0;
         background: $tau-sidebar-background;
         border-right: tall $tau-border;
