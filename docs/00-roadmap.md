@@ -26,9 +26,17 @@ tau_coding   CLI app, resources, skills, extensions, commands, UI integration
 10. System prompt assembly.
 11. Print and event rendering modes.
 12. Textual TUI behind an adapter boundary.
-13. Extensions.
-14. Compaction and context management.
-15. Packaging, docs, and examples.
+13. Tau home, paths, and automatic `.agents` resources.
+14. Session manager and resume.
+15. Slash command registry.
+16. Robust skills and prompt discovery.
+17. TUI slash-command autocomplete.
+18. Provider configuration and setup.
+19. Project context discovery and reload.
+20. Packaging and installation polish.
+21. Extensions.
+22. Compaction and context management.
+23. Advanced TUI and product polish.
 
 ## Phase 0 deliverables
 
