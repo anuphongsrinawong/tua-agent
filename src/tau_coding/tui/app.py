@@ -11,6 +11,7 @@ from textual.binding import Binding, BindingsMap
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.events import Key, Resize
 from textual.screen import ModalScreen
+from textual.timer import Timer
 from textual.widgets import (
     Button,
     Footer,
@@ -68,6 +69,7 @@ from tau_coding.tui.widgets import (
 type BindingEntry = Binding | tuple[str, str] | tuple[str, str, str]
 SIDEBAR_MIN_WIDTH = 96
 SIDEBAR_MIN_HEIGHT = 24
+ACTIVITY_FRAMES = ("Working |", "Working /", "Working -", "Working \\")
 
 
 class LoginRequiredProvider:
@@ -1033,6 +1035,8 @@ class TauTuiApp(App[None]):
         self.adapter = TuiEventAdapter(self.state)
         self._prompt_worker: Worker[None] | None = None
         self._completion_state = CompletionState()
+        self._activity_frame = 0
+        self._activity_timer: Timer | None = None
 
     def get_theme_variable_defaults(self) -> dict[str, str]:
         """Return Tau-specific CSS variables for the selected TUI theme."""
@@ -1072,6 +1076,12 @@ class TauTuiApp(App[None]):
             self._notify(self.startup_message, severity="warning")
         if self.initial_prompt and self.initial_prompt.strip():
             self._submit_prompt(self.initial_prompt.strip())
+
+    def on_unmount(self) -> None:
+        """Stop the activity timer when the app is torn down."""
+        if self._activity_timer is not None:
+            self._activity_timer.stop()
+            self._activity_timer = None
 
     def on_resize(self, event: Resize) -> None:
         """Update responsive chrome when the terminal changes size."""
@@ -1489,8 +1499,36 @@ class TauTuiApp(App[None]):
         compact_info.update_from_session(self.session, theme=theme)
         transcript = self.query_one("#transcript", TranscriptView)
         transcript.update_from_state(self.state, theme=theme)
+        self._sync_activity_indicator()
         status = self.query_one("#status", Static)
-        status.update("Working…" if self.state.running else "Ready")
+        status.update(self._status_text())
+
+    def _sync_activity_indicator(self) -> None:
+        if self.state.running:
+            if self._activity_timer is None:
+                self._activity_timer = self.set_interval(
+                    0.2,
+                    self._tick_activity,
+                    name="activity-indicator",
+                )
+            else:
+                self._activity_timer.resume()
+            return
+        self._activity_frame = 0
+        if self._activity_timer is not None:
+            self._activity_timer.pause()
+
+    def _tick_activity(self) -> None:
+        if not self.state.running:
+            return
+        self._activity_frame = (self._activity_frame + 1) % len(ACTIVITY_FRAMES)
+        status = self.query_one("#status", Static)
+        status.update(self._status_text())
+
+    def _status_text(self) -> str:
+        if not self.state.running:
+            return "Ready"
+        return ACTIVITY_FRAMES[self._activity_frame]
 
     def _refresh_completions(self) -> None:
         suggestions = self.query_one("#autocomplete", Static)

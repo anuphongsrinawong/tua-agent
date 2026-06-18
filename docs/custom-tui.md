@@ -184,6 +184,15 @@ A custom picker UI can also read the same data directly:
 - `session.available_thinking_levels`
 - `session.session_manager`
 
+## Activity State
+
+Frontends should treat `AgentStartEvent`/`AgentEndEvent` and non-recoverable
+`ErrorEvent` values as the source of truth for whether the agent is working.
+The built-in Textual app renders a subtle animated status indicator while the
+session is running and resets it to `Ready` when the run completes, is cancelled,
+or fails. Custom TUIs can use the same event-driven state instead of checking
+provider-specific streaming details.
+
 ## Keybindings
 
 Keybindings and themes are frontend policy. The built-in Textual app reads optional

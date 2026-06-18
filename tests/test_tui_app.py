@@ -668,6 +668,45 @@ def test_tui_app_loads_restored_messages_into_display_state() -> None:
 
 
 @pytest.mark.anyio
+async def test_tui_app_animates_activity_status_while_running() -> None:
+    app = TauTuiApp(FakeSession())
+
+    async with app.run_test():
+        status = app.query_one("#status")
+
+        assert str(status.render()) == "Ready"
+
+        app.adapter.apply(AgentStartEvent())
+        app._refresh()
+
+        assert str(status.render()) == "Working |"
+
+        app._tick_activity()
+
+        assert str(status.render()) == "Working /"
+
+        app.adapter.apply(AgentEndEvent())
+        app._refresh()
+
+        assert str(status.render()) == "Ready"
+
+
+@pytest.mark.anyio
+async def test_tui_app_clears_activity_status_on_error() -> None:
+    app = TauTuiApp(FakeSession())
+
+    async with app.run_test():
+        status = app.query_one("#status")
+
+        app.adapter.apply(AgentStartEvent())
+        app._refresh()
+        app.adapter.apply(ErrorEvent(message="provider failed", recoverable=False))
+        app._refresh()
+
+        assert str(status.render()) == "Ready"
+
+
+@pytest.mark.anyio
 async def test_tui_app_new_command_starts_new_visible_state() -> None:
     app = TauTuiApp(FakeSession(messages=[UserMessage(content="Earlier")]))
 
