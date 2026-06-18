@@ -26,6 +26,7 @@ from tau_coding.context_window import (
     estimate_context_usage,
     summarize_messages_for_compaction,
 )
+from tau_coding.credentials import FileCredentialStore, credentials_path
 from tau_coding.diagnostics import (
     AgentCallDiagnosticContext,
     AgentCallDiagnosticLogger,
@@ -37,9 +38,11 @@ from tau_coding.prompt_templates import (
     load_prompt_templates_with_diagnostics,
 )
 from tau_coding.provider_config import (
+    ProviderConfig,
     ProviderConfigError,
     ProviderSettings,
     load_provider_settings,
+    provider_has_usable_credentials,
 )
 from tau_coding.provider_runtime import ClosableModelProvider, create_model_provider
 from tau_coding.resources import (
@@ -143,6 +146,9 @@ class CodingSession:
         self._thinking_level = _state_thinking_level(state, config.thinking_level)
         self._owned_providers: list[ClosableModelProvider] = []
         self._diagnostic_logger = AgentCallDiagnosticLogger.from_paths(self._resource_paths.paths)
+        self._credential_store = FileCredentialStore(
+            credentials_path(self._resource_paths.paths) if self._resource_paths.paths else None
+        )
         self._last_diagnostic_log_path: Path | None = None
 
     @classmethod
@@ -222,30 +228,32 @@ class CodingSession:
 
     @property
     def available_providers(self) -> tuple[str, ...]:
-        """Return configured provider names."""
+        """Return provider names Tau can call with available credentials."""
         if self._provider_settings is None:
             return (self._provider_name,)
-        return tuple(provider.name for provider in self._provider_settings.providers)
+        return tuple(provider.name for provider in self._usable_provider_configs())
 
     @property
     def available_models(self) -> tuple[str, ...]:
-        """Return configured model names for the active provider."""
+        """Return model names for the active provider when it is usable."""
         if self._provider_settings is None:
             return (self.model,)
         try:
             provider = self._provider_settings.get_provider(self._provider_name)
         except ProviderConfigError:
             return (self.model,)
+        if not self._provider_is_usable(provider):
+            return ()
         return provider.models
 
     @property
     def available_model_choices(self) -> tuple[ModelChoice, ...]:
-        """Return configured provider/model choices."""
+        """Return provider/model choices Tau can call with available credentials."""
         if self._provider_settings is None:
             return (ModelChoice(provider_name=self._provider_name, model=self.model),)
         return tuple(
             ModelChoice(provider_name=provider.name, model=model)
-            for provider in self._provider_settings.providers
+            for provider in self._usable_provider_configs()
             for model in provider.models
         )
 
@@ -355,7 +363,10 @@ class CodingSession:
 
         provider_config = self._provider_settings.get_provider(provider_name)
         try:
-            provider = create_model_provider(provider_config)
+            provider = create_model_provider(
+                provider_config,
+                credential_store=self._credential_store,
+            )
         except RuntimeError as exc:
             raise ProviderConfigError(str(exc)) from exc
         self._owned_providers.append(provider)
@@ -609,6 +620,21 @@ class CodingSession:
         self._state = SessionState.from_entries(entries)
         if self._config.session_id is not None and self._config.session_manager is not None:
             self._config.session_manager.touch_session(self._config.session_id, model=self.model)
+
+    def _provider_is_usable(self, provider: ProviderConfig) -> bool:
+        return provider_has_usable_credentials(
+            provider,
+            credential_reader=self._credential_store,
+        )
+
+    def _usable_provider_configs(self) -> tuple[ProviderConfig, ...]:
+        if self._provider_settings is None:
+            return ()
+        return tuple(
+            provider
+            for provider in self._provider_settings.providers
+            if self._provider_is_usable(provider)
+        )
 
     async def _maybe_auto_compact(self) -> None:
         threshold = self._auto_compact_token_threshold

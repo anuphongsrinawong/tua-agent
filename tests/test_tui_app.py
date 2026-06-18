@@ -871,6 +871,30 @@ async def test_tui_app_opens_command_palette_from_keybinding() -> None:
         assert app.query_one("#autocomplete").display is True
 
 
+def test_tui_model_picker_guides_setup_when_no_provider_is_usable() -> None:
+    class UnusableProviderSession(FakeSession):
+        def __init__(self) -> None:
+            super().__init__()
+            self.available_models = ()
+            self.available_model_choices = ()
+
+    session = UnusableProviderSession()
+    app = TauTuiApp(session)
+    notifications: list[tuple[str, str | None]] = []
+
+    def fake_notify(message: str, **kwargs: object) -> None:
+        severity = kwargs.get("severity")
+        notifications.append((message, severity if isinstance(severity, str) else None))
+
+    app._notify = fake_notify  # type: ignore[method-assign]
+
+    app._open_model_picker()
+
+    assert notifications == [
+        ("No configured providers are usable. Run /login to set up a provider.", "warning")
+    ]
+
+
 @pytest.mark.anyio
 async def test_tui_app_help_uses_modal_instead_of_transcript() -> None:
     app = TauTuiApp(FakeSession())

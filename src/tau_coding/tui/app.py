@@ -1351,7 +1351,10 @@ class TauTuiApp(App[None]):
             )
         )
         if not choices:
-            self._notify("No models are configured for this provider.", severity="warning")
+            self._notify(
+                "No configured providers are usable. Run /login to set up a provider.",
+                severity="warning",
+            )
             return
         self.push_screen(
             ModelPickerScreen(

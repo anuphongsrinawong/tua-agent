@@ -31,6 +31,7 @@ from tau_ai import (
 from tau_coding import (
     CodingSession,
     CodingSessionConfig,
+    FileCredentialStore,
     OpenAICompatibleProviderConfig,
     ProviderSettings,
     SessionManager,
@@ -682,7 +683,12 @@ async def test_session_switches_configured_provider(
 ) -> None:
     created_providers: list[SwitchableFakeProvider] = []
 
-    def create_provider(provider_config: object) -> SwitchableFakeProvider:
+    def create_provider(
+        provider_config: object,
+        *,
+        credential_store: FileCredentialStore | None = None,
+    ) -> SwitchableFakeProvider:
+        del credential_store
         provider = SwitchableFakeProvider(provider_config)
         created_providers.append(provider)
         return provider
@@ -721,7 +727,6 @@ async def test_session_switches_configured_provider(
     assert session.model == "qwen"
     assert session.available_models == ("qwen", "llama")
     assert [(choice.provider_name, choice.model) for choice in session.available_model_choices] == [
-        ("openai", "gpt-5.5"),
         ("local", "qwen"),
         ("local", "llama"),
     ]
@@ -734,6 +739,132 @@ async def test_session_switches_configured_provider(
     await session.aclose()
 
     assert [provider.closed for provider in created_providers] == [True, True]
+
+
+@pytest.mark.anyio
+async def test_session_switch_uses_session_credential_store(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    tau_paths = TauPaths(home=tmp_path / "tau-home", agents_home=tmp_path / "agents-home")
+    FileCredentialStore(tau_paths.home / "credentials.json").set("openai", "stored-key")
+    credential_store_paths: list[Path] = []
+
+    def create_provider(
+        provider_config: object,
+        *,
+        credential_store: FileCredentialStore | None = None,
+    ) -> SwitchableFakeProvider:
+        del provider_config
+        assert credential_store is not None
+        credential_store_paths.append(credential_store.path)
+        return SwitchableFakeProvider(object())
+
+    monkeypatch.setattr(coding_session_module, "create_model_provider", create_provider)
+    settings = ProviderSettings(
+        default_provider="local",
+        providers=(
+            OpenAICompatibleProviderConfig(
+                name="local",
+                api_key_env="LOCAL_API_KEY",
+                credential_name=None,
+                models=("qwen",),
+                default_model="qwen",
+            ),
+            OpenAICompatibleProviderConfig(name="openai", credential_name="openai"),
+        ),
+    )
+    session = await CodingSession.load(
+        CodingSessionConfig(
+            provider=FakeProvider([]),
+            model="fake",
+            system="You are Tau.",
+            storage=JsonlSessionStorage(tmp_path / "switch-store-session.jsonl"),
+            cwd=tmp_path,
+            provider_name="local",
+            provider_settings=settings,
+            resource_paths=TauResourcePaths(root=tau_paths.home, paths=tau_paths),
+        )
+    )
+
+    session.set_provider("openai")
+
+    assert credential_store_paths == [tau_paths.home / "credentials.json"]
+
+
+@pytest.mark.anyio
+async def test_available_model_choices_hide_unusable_providers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("LOCAL_API_KEY", "local-key")
+    tau_paths = TauPaths(home=tmp_path / "tau-home", agents_home=tmp_path / "agents-home")
+    settings = ProviderSettings(
+        default_provider="openai",
+        providers=(
+            OpenAICompatibleProviderConfig(name="openai"),
+            OpenAICompatibleProviderConfig(
+                name="local",
+                api_key_env="LOCAL_API_KEY",
+                credential_name=None,
+                models=("qwen", "llama"),
+                default_model="qwen",
+            ),
+        ),
+    )
+    session = await CodingSession.load(
+        CodingSessionConfig(
+            provider=FakeProvider([]),
+            model="fake",
+            system="You are Tau.",
+            storage=JsonlSessionStorage(tmp_path / "session.jsonl"),
+            cwd=tmp_path,
+            provider_name="openai",
+            provider_settings=settings,
+            resource_paths=TauResourcePaths(root=tau_paths.home, paths=tau_paths),
+        )
+    )
+
+    assert session.available_models == ()
+    assert session.available_providers == ("local",)
+    assert [(choice.provider_name, choice.model) for choice in session.available_model_choices] == [
+        ("local", "qwen"),
+        ("local", "llama"),
+    ]
+
+
+@pytest.mark.anyio
+async def test_available_model_choices_include_stored_credentials(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    tau_paths = TauPaths(home=tmp_path / "tau-home", agents_home=tmp_path / "agents-home")
+    FileCredentialStore(tau_paths.home / "credentials.json").set("openai", "stored-key")
+    settings = ProviderSettings(
+        default_provider="openai",
+        providers=(OpenAICompatibleProviderConfig(name="openai", credential_name="openai"),),
+    )
+
+    session = await CodingSession.load(
+        CodingSessionConfig(
+            provider=FakeProvider([]),
+            model="fake",
+            system="You are Tau.",
+            storage=JsonlSessionStorage(tmp_path / "stored-session.jsonl"),
+            cwd=tmp_path,
+            provider_name="openai",
+            provider_settings=settings,
+            resource_paths=TauResourcePaths(root=tau_paths.home, paths=tau_paths),
+        )
+    )
+
+    assert session.available_providers == ("openai",)
+    assert ("openai", "gpt-5.5") in [
+        (choice.provider_name, choice.model) for choice in session.available_model_choices
+    ]
 
 
 @pytest.mark.anyio

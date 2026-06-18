@@ -13,6 +13,7 @@ from tau_coding.provider_config import (
     anthropic_config_from_provider,
     load_provider_settings,
     openai_compatible_config_from_provider,
+    provider_has_usable_credentials,
     provider_settings_from_json,
     resolve_provider_selection,
     save_provider_settings,
@@ -228,7 +229,7 @@ def test_openai_compatible_config_from_provider_uses_stored_credential(
     assert config.api_key == "stored-key"
 
 
-def test_openai_compatible_config_from_provider_requires_stored_credential(
+def test_openai_compatible_config_from_provider_falls_back_to_env_when_stored_missing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("OPENROUTER_API_KEY", "env-key")
@@ -245,8 +246,35 @@ def test_openai_compatible_config_from_provider_requires_stored_credential(
         def get(self, name: str) -> str | None:
             return None
 
-    with pytest.raises(RuntimeError, match="Run /login openrouter"):
-        openai_compatible_config_from_provider(provider, credential_reader=FakeCredentials())
+    config = openai_compatible_config_from_provider(provider, credential_reader=FakeCredentials())
+
+    assert config.api_key == "env-key"
+
+
+def test_provider_has_usable_credentials_checks_stored_key_and_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    provider = OpenAICompatibleProviderConfig(
+        name="openrouter",
+        api_key_env="OPENROUTER_API_KEY",
+        credential_name="openrouter",
+    )
+
+    class EmptyCredentials:
+        def get(self, name: str) -> str | None:
+            return None
+
+    class StoredCredentials:
+        def get(self, name: str) -> str | None:
+            return "stored-key" if name == "openrouter" else None
+
+    assert not provider_has_usable_credentials(provider, credential_reader=EmptyCredentials())
+    assert provider_has_usable_credentials(provider, credential_reader=StoredCredentials())
+
+    monkeypatch.setenv("OPENROUTER_API_KEY", "env-key")
+
+    assert provider_has_usable_credentials(provider, credential_reader=EmptyCredentials())
 
 
 def test_anthropic_config_from_provider_uses_stored_credential(

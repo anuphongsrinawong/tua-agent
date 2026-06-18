@@ -406,6 +406,22 @@ def provider_kind(provider: ProviderConfig) -> ProviderKind:
     return "openai-compatible"
 
 
+def provider_has_usable_credentials(
+    provider: ProviderConfig,
+    *,
+    credential_reader: CredentialReader | None = None,
+) -> bool:
+    """Return whether Tau can attempt calls for this provider without prompting setup."""
+    if provider.credential_name and credential_reader is not None:
+        if isinstance(provider, OpenAICodexProviderConfig):
+            get_oauth = getattr(credential_reader, "get_oauth", None)
+            if get_oauth is not None and get_oauth(provider.credential_name) is not None:
+                return True
+        elif credential_reader.get(provider.credential_name):
+            return True
+    return bool(environ.get(provider.api_key_env))
+
+
 def _provider_from_json(data: object) -> ProviderConfig:
     if not isinstance(data, dict):
         raise ProviderConfigError("Provider entries must be JSON objects")
@@ -487,7 +503,6 @@ def _api_key_from_provider(
         credential = credential_reader.get(provider.credential_name)
         if credential:
             return credential
-        raise RuntimeError(f"Missing provider API key. Run /login {provider.name}.")
 
     api_key = environ.get(provider.api_key_env)
     if api_key:
