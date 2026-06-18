@@ -772,11 +772,19 @@ async def test_tui_app_command_modal_renders_literal_markup_text() -> None:
 @pytest.mark.anyio
 async def test_tui_app_escape_without_running_does_not_append_transcript_status() -> None:
     app = TauTuiApp(FakeSession(messages=[UserMessage(content="Earlier")]))
+    notifications: list[str] = []
+
+    def fake_notify(message: str, **kwargs: object) -> None:
+        del kwargs
+        notifications.append(message)
+
+    app._notify = fake_notify  # type: ignore[method-assign]
 
     async with app.run_test() as pilot:
         await pilot.press("escape")
 
         assert [(item.role, item.text) for item in app.state.items] == [("user", "Earlier")]
+        assert notifications == []
 
 
 @pytest.mark.anyio

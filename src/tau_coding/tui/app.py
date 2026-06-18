@@ -989,8 +989,6 @@ class TauTuiApp(App[None]):
         if self.state.running:
             self.session.cancel()
             self._notify("Cancellation requested.")
-        else:
-            self._notify("Nothing to cancel.")
 
     def action_accept_completion(self) -> None:
         """Accept the currently selected prompt completion."""
