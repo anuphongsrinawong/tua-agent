@@ -932,7 +932,23 @@ class TauTuiApp(App[None]):
 
     Footer {
         background: $tau-chrome-background;
-        color: $tau-muted-text;
+        color: $tau-chrome-text;
+    }
+
+    Footer FooterKey {
+        background: $tau-chrome-background;
+        color: $tau-chrome-text;
+    }
+
+    Footer FooterKey .footer-key--key {
+        background: $tau-chrome-background;
+        color: $tau-accent;
+    }
+
+    Footer FooterKey .footer-key--description,
+    Footer FooterLabel {
+        background: $tau-chrome-background;
+        color: $tau-chrome-text;
     }
 
     Toast {
@@ -1119,6 +1135,7 @@ class TauTuiApp(App[None]):
         max-height: 70%;
         padding: 1 2;
         background: $tau-chrome-background;
+        color: $tau-chrome-text;
         border: tall $tau-border;
     }
 
@@ -2074,6 +2091,13 @@ def _theme_css_variables(theme: TuiTheme) -> dict[str, str]:
         "tau-accent": theme.accent,
         "tau-highlight-background": theme.highlight_background,
         "tau-highlight-text": theme.highlight_text,
+        "footer-background": theme.chrome_background,
+        "footer-foreground": theme.chrome_text,
+        "footer-description-background": theme.chrome_background,
+        "footer-description-foreground": theme.chrome_text,
+        "footer-key-background": theme.chrome_background,
+        "footer-key-foreground": theme.accent,
+        "footer-item-background": theme.chrome_background,
     }
 
 

@@ -786,6 +786,10 @@ def test_tui_app_uses_light_theme_css_variables() -> None:
     assert variables["tau-muted-text"] == "#475569"
     assert variables["tau-prompt-background"] == "#f8fafc"
     assert variables["tau-prompt-border"] == "#2563eb"
+    assert variables["footer-background"] == "#f3f4f6"
+    assert variables["footer-foreground"] == "#111827"
+    assert variables["footer-description-foreground"] == "#111827"
+    assert variables["footer-key-foreground"] == "#0f766e"
 
 
 def test_tau_dark_theme_uses_black_chat_backgrounds() -> None:
