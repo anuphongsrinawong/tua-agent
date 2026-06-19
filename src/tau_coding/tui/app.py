@@ -83,6 +83,7 @@ SIDEBAR_MIN_WIDTH = 96
 SIDEBAR_MIN_HEIGHT = 24
 ACTIVITY_TICK_SECONDS = 0.15
 ACTIVITY_COLOR_FADE_STEPS = 24
+ACTIVITY_INDICATOR_HEIGHT = 3
 
 
 class LoginRequiredProvider:
@@ -1236,14 +1237,28 @@ class TauTuiApp(App[None]):
         color: $tau-muted-text;
     }
 
+    #prompt-row {
+        height: auto;
+        margin: 0 1 1 1;
+    }
+
     #prompt {
+        width: 1fr;
         height: auto;
         background: $tau-prompt-background;
         color: $tau-prompt-text;
         border: tall transparent;
-        margin: 0 1 1 1;
+        margin: 0;
         padding: 0 1;
         max-height: 8;
+    }
+
+    #activity-indicator {
+        width: 1;
+        height: 3;
+        margin: 0 0 0 1;
+        background: transparent;
+        color: transparent;
     }
 
     #prompt:focus {
@@ -1527,11 +1542,13 @@ class TauTuiApp(App[None]):
                     markup=False,
                 )
                 yield Static("", id="queued-messages")
-                yield PromptInput(
-                    placeholder="Ask Tau…  Enter submits, Shift+Enter inserts a newline",
-                    id="prompt",
-                    tui_keybindings=self.tui_settings.keybindings,
-                )
+                with Horizontal(id="prompt-row"):
+                    yield PromptInput(
+                        placeholder="Ask Tau…  Enter submits, Shift+Enter inserts a newline",
+                        id="prompt",
+                        tui_keybindings=self.tui_settings.keybindings,
+                    )
+                    yield Static("", id="activity-indicator")
                 yield CompactSessionInfo(id="compact-session-info")
                 yield Static("", id="autocomplete")
         yield Footer()
@@ -1618,6 +1635,15 @@ class TauTuiApp(App[None]):
                     self._notify(compact_message)
                 except Exception as exc:  # noqa: BLE001 - surface command failures in the TUI
                     self._notify(f"Error: {exc}", severity="error")
+            if command.export_requested:
+                try:
+                    exported_path = await self.session.export(
+                        command.export_destination,
+                        format=command.export_format,
+                    )
+                    self._notify(f"Exported session to {exported_path}")
+                except Exception as exc:  # noqa: BLE001 - surface command failures in the TUI
+                    self._notify(f"Could not export session: {exc}", severity="error")
             if command.resume_session_id is not None:
                 await self._resume_session(command.resume_session_id)
             if command.resume_picker_requested:
@@ -1729,8 +1755,9 @@ class TauTuiApp(App[None]):
         """Cancel the active agent turn."""
         self._cancel_active_prompt(notify=True)
 
-    def _cancel_active_prompt(self, *, notify: bool) -> None:
+    def _cancel_active_prompt(self, *, notify: bool, interrupt: bool = False) -> None:
         """Cancel the active prompt worker and ignore any late events from it."""
+        del interrupt
         worker = self._prompt_worker
         is_worker_active = worker is not None and not worker.is_cancelled
         is_session_running = bool(getattr(self.session, "is_running", False))
@@ -1748,7 +1775,7 @@ class TauTuiApp(App[None]):
         self.state.assistant_buffer = ""
         self._refresh()
         if notify:
-            self._notify("Cancellation requested.")
+            self._notify("Interrupted current operation.")
 
     def action_accept_completion(self) -> None:
         """Accept the currently selected prompt completion."""
@@ -1902,7 +1929,7 @@ class TauTuiApp(App[None]):
         self._refresh()
 
     async def _new_session(self) -> None:
-        self._cancel_active_prompt(notify=False)
+        self._cancel_active_prompt(notify=False, interrupt=True)
         new_session = getattr(self.session, "new_session", None)
         if new_session is None:
             self._notify("Session manager is not available.")
@@ -2219,15 +2246,24 @@ class TauTuiApp(App[None]):
         self._apply_activity_indicator()
 
     def _apply_activity_indicator(self) -> None:
+        theme = self.tui_settings.resolved_theme
         prompt = self.query_one("#prompt", PromptInput)
         prompt.styles.border = (
             "tall",
             _activity_prompt_border_color(
-                self.tui_settings.resolved_theme,
+                theme,
                 frame=self._activity_frame,
                 running=self.state.running,
                 shell_mode=_is_terminal_command_prompt(prompt.text),
             ),
+        )
+        indicator = self.query_one("#activity-indicator", Static)
+        indicator.update(
+            _render_activity_indicator(
+                theme,
+                frame=self._activity_frame,
+                running=self.state.running,
+            )
         )
 
     def _refresh_completions(self) -> None:
@@ -2280,26 +2316,49 @@ def _activity_prompt_border_color(
     shell_mode: bool,
 ) -> str:
     """Return the prompt border color for the current activity animation frame."""
+    del frame, running
     if shell_mode:
         return theme.accent
+    return theme.prompt_border
+
+
+def _render_activity_indicator(theme: TuiTheme, *, frame: int, running: bool) -> Text:
+    """Render the narrow working indicator that sits to the right of the prompt."""
     if not running:
-        return theme.prompt_border
-    palette = (
-        theme.prompt_border,
-        theme.accent,
-        theme.highlight_background,
-        theme.prompt_border,
+        return Text("\n".join(" " for _ in range(ACTIVITY_INDICATOR_HEIGHT)))
+
+    cycle_length = (ACTIVITY_INDICATOR_HEIGHT - 1) * 2
+    cycle_position = frame % cycle_length
+    active_row = (
+        cycle_position
+        if cycle_position < ACTIVITY_INDICATOR_HEIGHT
+        else cycle_length - cycle_position
     )
-    segment_count = len(palette) - 1
-    position = frame % (segment_count * ACTIVITY_COLOR_FADE_STEPS)
-    segment_index = position // ACTIVITY_COLOR_FADE_STEPS
-    segment_frame = position % ACTIVITY_COLOR_FADE_STEPS
-    fraction = segment_frame / ACTIVITY_COLOR_FADE_STEPS
-    return _blend_hex_colors(
-        palette[segment_index],
-        palette[segment_index + 1],
-        fraction=fraction,
-    )
+    direction = 1 if cycle_position < ACTIVITY_INDICATOR_HEIGHT else -1
+    trail_rows = {
+        active_row: theme.highlight_background,
+        active_row - direction: _blend_hex_colors(
+            theme.highlight_background,
+            theme.screen_background,
+            fraction=0.35,
+        ),
+        active_row - (direction * 2): _blend_hex_colors(
+            theme.highlight_background,
+            theme.screen_background,
+            fraction=0.65,
+        ),
+    }
+
+    rendered = Text()
+    for row in range(ACTIVITY_INDICATOR_HEIGHT):
+        color = trail_rows.get(row)
+        if color is None:
+            rendered.append(" ")
+        else:
+            rendered.append("■", style=color)
+        if row < ACTIVITY_INDICATOR_HEIGHT - 1:
+            rendered.append("\n")
+    return rendered
 
 
 def _is_terminal_command_prompt(text: str) -> bool:
