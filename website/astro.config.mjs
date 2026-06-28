@@ -56,7 +56,7 @@ function remarkRelativeMdLinks() {
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://alejandro-ao.github.io",
+  site: "https://twotimespi.dev",
   base: BASE,
   markdown: {
     remarkPlugins: [remarkRelativeMdLinks],
