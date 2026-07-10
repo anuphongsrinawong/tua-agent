@@ -14,3 +14,10 @@ wheels/
 website/public/
 website/resources/
 website/.hugo_build.lock
+__pycache__/
+*.pyc
+CLAUDE_*.md
+/tmp/
+.venv/
+uv.lock
+

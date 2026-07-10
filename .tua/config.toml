@@ -1,0 +1,15 @@
+[profile]
+default = "rustacean"
+
+[tools]
+timeout = 600
+max_output_chars = 16000
+
+[dashboard]
+host = "127.0.0.1"
+port = 8765
+
+[rust]
+edition = "2021"
+clippy_pedantic = false
+require_doc_tests = false

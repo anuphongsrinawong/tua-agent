@@ -1,81 +1,70 @@
-# Tau Agent Instructions
+# Tua Agent Instructions
 
-Tau is a Python implementation of Pi's minimalist coding-agent harness architecture. The goal is to develop it incrementally, with each phase clearly documented and tested.
+🦀 **Tua Agent** is a Rust-specialized coding agent built on Tau's minimalist harness architecture.
+It is designed to be the best AI pair-programmer for Rust development — from writing safe code
+to debugging borrow-checker errors, from refactoring to benchmarking.
 
-## Project Roadmap
+## Mission
 
-The implementation roadmap is tracked in GitHub issue #1:
+**Make Rust development joyful and safe.** Tua understands ownership, lifetimes, traits,
+async Rust, unsafe boundaries, macro magic, and the entire cargo ecosystem. It doesn't just
+write Rust — it teaches Rust.
 
-- https://github.com/alejandro-ao/tau/issues/1
+## Architecture
 
-Use that issue as the primary reference for phase ordering and architectural intent.
-
-## Architecture Principles
-
-Preserve Pi's core separation of concerns:
-
-```text
-AgentHarness = reusable agent brain
-AgentSession = coding-agent environment
-TUI = one possible frontend
-```
-
-Tau should be organized around these layers:
+Tua extends Tau's three-layer architecture with a Rust-specialization layer:
 
 ```text
-tau_ai      provider/model streaming layer
-tau_agent   portable agent harness, loop, tools, events, sessions
-tau_coding  CLI app, resources, skills, extensions, commands, TUI integration
+tua_agent    🦀 Rust CLI, system prompt, tools, skills, profiles
+  └─ tau_coding  CLI app, TUI, sessions
+       └─ tau_agent  portable agent harness, loop, events
+            └─ tau_ai  provider/model streaming
 ```
 
-Keep the core agent package independent of CLI, Textual, Rich rendering, session file locations, and application-specific resource loading.
+Key additions over vanilla Tau:
 
-## TUI Direction
+| Component | Purpose |
+|---|---|
+| `tua_agent/rust_system_prompt.py` | Rust-expert system prompt — covers ownership, lifetimes, cargo, clippy |
+| `tua_agent/rust_tools.py` | Rust-specific tools: cargo build/test/clippy, rustc, rustfmt, rustup |
+| `tua_agent/rust_profiles.py` | Rust coding profiles (Ferris, BorrowChecker, Rustacean, etc.) |
+| `tua_agent/dashboard.py` | Web dashboard for Rust project health monitoring |
+| `tua_agent/cli.py` | `tua` CLI command — drop-in with Rust defaults |
 
-Use Textual for the full interactive TUI, but only behind an adapter boundary. The agent harness should emit events; UI layers should consume those events.
+## Rust-First Principles
 
-Early phases should prioritize:
+1. **Safety by default** — Prefer safe Rust; mark unsafe blocks clearly with justification
+2. **Zero-cost abstractions** — Don't box unless necessary; use generics over trait objects
+3. **Compile-first** — Run `cargo check` before suggesting edits; never ship broken code
+4. **Clippy is law** — Every suggestion must pass `cargo clippy` without warnings
+5. **Tests are documentation** — Write doc-tests and integration tests for every public API
+6. **Error handling is explicit** — Use `Result<T, E>` and `thiserror`/`anyhow`; never `unwrap()` in production
+7. **Borrow checker as teacher** — Explain WHY the borrow checker rejects code, not just HOW to fix it
 
-1. print-mode CLI
-2. Rich renderers
-3. Textual interactive app
+## Rust Coding Profiles
 
-Do not let Textual become a dependency of the reusable agent harness.
+| Profile | Focus | Use When |
+|---|---|---|
+| 🦀 Ferris | Friendly, beginner-friendly | Teaching Rust, onboarding |
+| 🔍 BorrowChecker | Strict, lifetime-aware | Debugging ownership issues |
+| 🚀 Rustacean | Idiomatic, performant | Production Rust code |
+| 📦 CargoCult | Dependency-smart | Crate selection, feature flags |
+| ⚡ UnsafeFerris | Unsafe-aware | FFI, embedded, kernel |
+| 🧪 TestCrab | Test-obsessed | Property testing, fuzzing |
+| 📚 DocCrab | Documentation-first | API design, public crates |
+| 🛡️ Strict | Maximum guardrails | Mission-critical Rust |
 
 ## Development Workflow
 
 - Work in small, documented phases.
-- Keep changes aligned with the roadmap issue.
-- Add or update docs when introducing architectural concepts.
-- Add tests for behavior before expanding features.
-- Run tests and Python commands through `uv` (for example, `uv run pytest` or `uv run python ...`) so they use the project environment.
-- Prefer simple, explicit abstractions over framework-heavy designs.
-- Keep commits atomic: one coherent feature, fix, docs update, refactor, or cleanup per commit.
-
-## GitHub Issue and PR Formatting
-
-- When creating or editing GitHub issues and pull requests from the CLI, write multiline Markdown bodies through a temporary file or heredoc and pass them with `--body-file`.
-- Do not pass escaped newlines like `\n` inside quoted `--body` strings; GitHub will render them literally instead of as line breaks.
-- Use Markdown headings, blank lines, bullets, and backticks for commands/paths so issue and PR descriptions are readable.
-- After creating or editing a GitHub issue or PR body, verify the rendered source with `gh issue view ... --json body` or `gh pr view ... --json body` when practical.
-
-## Python Guidelines
-
-- Target the Python version declared in `pyproject.toml`.
-- Prefer typed dataclasses or schema models for core messages, events, tools, and sessions.
-- Keep async boundaries explicit.
-- Use fake providers and fake tools for deterministic agent-loop tests.
-- Avoid provider-specific assumptions in core agent code.
+- Every Rust-related change must pass `cargo check` / `cargo test` / `cargo clippy`.
+- Run Python tests through `uv` (e.g., `uv run pytest`).
+- Keep commits atomic: one coherent Rust feature, fix, or doc update per commit.
 
 ## Documentation Expectations
 
-Each substantial phase should leave behind beginner-friendly notes under `dev-notes/` (build journals, design docs, ADRs), explaining:
-
-- what was added
-- why it exists
-- how it maps to Pi's design
+Each substantial phase should leave behind beginner-friendly notes under `dev-notes/`:
+- what was added (Rust feature, tool, or profile)
+- why it exists (which Rust pain point it solves)
+- how it maps to Tau's architecture
 - how to test or use it
-
-When a phase adds or changes user-facing behavior, also update the published docs
-under `website/src/content/docs/` (the "Use Tau" guides and reference).
-

@@ -3,9 +3,9 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "tau-ai"
-version = "0.1.5"
-description = "A Python implementation of a minimalist Pi-style coding-agent harness."
+name = "tua-agent"
+version = "0.0.1"
+description = "🦀 Tua Agent — A Rust-specialized AI coding agent built on Tau. 13 Rust tools, 10 skills, 8 coding profiles, web dashboard."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -13,22 +13,24 @@ requires-python = ">=3.12"
 dependencies = [
     "anyio>=4.0",
     "httpx[socks]>=0.27",
+    "openai>=2.45.0",
     "packaging>=24.0",
     "pydantic>=2.0",
     "pygments>=2.18",
+    "python-dotenv>=1.2.2",
     "rich>=13.0",
     "textual>=1.0",
     "typer>=0.12",
 ]
 
 [project.urls]
-Homepage = "https://twotimespi.dev"
-Documentation = "https://twotimespi.dev"
-Repository = "https://github.com/alejandro-ao/tau"
-Issues = "https://github.com/alejandro-ao/tau/issues"
+Homepage = "https://github.com/anuphongsrinawong/tua-agent"
+Documentation = "https://github.com/anuphongsrinawong/tua-agent"
+Repository = "https://github.com/anuphongsrinawong/tua-agent"
+Issues = "https://github.com/anuphongsrinawong/tua-agent/issues"
 
 [project.scripts]
-tau = "tau_coding.cli:app"
+tua = "tua_agent.cli:app"
 
 [dependency-groups]
 dev = [
@@ -38,7 +40,7 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/tau_ai", "src/tau_agent", "src/tau_coding"]
+packages = ["src/tau_ai", "src/tau_agent", "src/tau_coding", "src/tua_agent"]
 
 [tool.ruff]
 line-length = 100
@@ -55,7 +57,7 @@ indent-style = "space"
 [tool.mypy]
 python_version = "3.12"
 strict = true
-packages = ["tau_ai", "tau_agent", "tau_coding"]
+packages = ["tau_ai", "tau_agent", "tau_coding", "tua_agent"]
 
 [[tool.mypy.overrides]]
 module = "pygments.*"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Tua Agent Dashboard (Rust project health monitor)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/innovationtech888/tua-agent
+ExecStart=/home/innovationtech888/tua-agent/.venv/bin/python -m tua_agent.dashboard
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
