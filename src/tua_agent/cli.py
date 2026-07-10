@@ -345,6 +345,47 @@ def new(
     _new_project(name=name, binary=bin, edition=edition)
 
 
+@app.command()
+def setup(
+    provider: str = typer.Option("deepseek", "--provider", help="Provider: deepseek, openai, anthropic"),
+    key: str = typer.Option(None, "--key", help="API key (or set env var)"),
+):
+    """Configure an AI provider for Tua."""
+    from tau_coding.credentials import FileCredentialStore
+    
+    store = FileCredentialStore()
+    env_vars = {"deepseek": "DEEPSEEK_API_KEY", "openai": "OPENAI_API_KEY", "anthropic": "ANTHROPIC_API_KEY"}
+    base_urls = {
+        "deepseek": "https://api.deepseek.com/v1",
+        "openai": "https://api.openai.com/v1",
+        "anthropic": "https://api.anthropic.com/v1",
+    }
+    default_models = {"deepseek": "deepseek-chat", "openai": "gpt-4o", "anthropic": "claude-sonnet-4-20250514"}
+    
+    env_var = env_vars.get(provider, "API_KEY")
+    base_url = base_urls.get(provider, "https://api.openai.com/v1")
+    default_model = default_models.get(provider, "gpt-4o")
+    
+    if key:
+        store.set(provider, key)
+        typer.echo(f"✅ API key saved for {provider}")
+    elif environ.get(env_var):
+        store.set(provider, environ[env_var])
+        typer.echo(f"✅ Using {env_var} from environment")
+    else:
+        typer.echo(f"❌ No API key found. Set {env_var} or use --key", err=True)
+        raise typer.Exit(1)
+    
+    catalog_path = Path.home() / ".tau" / "catalog.toml"
+    catalog = catalog_path.read_text() if catalog_path.exists() else ""
+    if f'name = "{provider}"' not in catalog:
+        entry = f'\n[[providers]]\nname = "{provider}"\ndisplay_name = "{provider.title()} API"\nkind = "openai-compatible"\nbase_url = "{base_url}"\napi_key_env = "{env_var}"\ncredential_name = "{provider}"\nmodels = ["{default_model}"]\ndefault_model = "{default_model}"\ndocs_url = "{base_url}"\n'
+        catalog_path.write_text(catalog + entry)
+        typer.echo(f"✅ Added {provider} to ~/.tau/catalog.toml")
+    
+    typer.echo(f"\n🦀  Use: tua --provider {provider} -p 'your prompt'")
+
+
 def _run_cargo(subcommand: str, cwd: str | None = None, extra_args: list[str] | None = None):
     """Run a cargo subcommand and stream output."""
     import subprocess

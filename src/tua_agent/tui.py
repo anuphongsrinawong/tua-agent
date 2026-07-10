@@ -217,6 +217,7 @@ class TuaTuiApp(App):
         self._tools_run = 0
         self._tokens = 0
         self._assistant_buf = ""
+        self._last_edit: tuple[str, int] | None = None  # (path, lines_after)
 
     # ── Layout ────────────────────────────────────────────────────────────────
 
@@ -235,6 +236,25 @@ class TuaTuiApp(App):
             "  /help   /profile   /tools   /skills   /model   /config   /clear          Ctrl+C to quit",
             id="footer-bar",
         )
+
+    def action_command_palette(self) -> None:
+        """Show command palette with all slash commands."""
+        chat = self._chat()
+        commands = [
+            "/help       Show help",
+            "/profile    Switch Rust coding profile",
+            "/model      Switch AI model",
+            "/tools      List Rust toolchain tools",
+            "/skills     List Rust skills",
+            "/config     Show configuration",
+            "/resume     List recent sessions",
+            "/diff       Show last file edit",
+            "/clear      Clear chat",
+            "Ctrl+C      Quit Tua",
+        ]
+        chat.write(Text("🎛️  Command Palette", style=PALETTE["blue"]))
+        for cmd in commands:
+            chat.write(Text(f"   {cmd}", style=PALETTE["dim"]))
 
     def on_mount(self) -> None:
         self.project_info = _detect_cargo_project(self.cwd)
@@ -354,6 +374,7 @@ class TuaTuiApp(App):
         """Write any buffered assistant deltas as one chat block with syntax highlighting."""
         body = self._assistant_buf.strip()
         self._assistant_buf = ""
+        self._last_edit: tuple[str, int] | None = None  # (path, lines_after)
         if not body:
             return
         self._messages += 1
@@ -426,6 +447,8 @@ class TuaTuiApp(App):
             self._show_config()
         elif cmd == "/model":
             self._switch_model(arg)
+        elif cmd == "/diff":
+            self._show_diff()
         elif cmd == "/resume":
             self._resume_session(arg)
         elif cmd == "/profile":
@@ -498,6 +521,15 @@ class TuaTuiApp(App):
         self.requested_model = arg
         self._invalidate_session()
         chat.write(Text(f"✅ Switched model to ", style=PALETTE["green"]) + Text(arg, style=PALETTE["rust"]))
+
+    def _show_diff(self) -> None:
+        """Show last file edit summary."""
+        chat = self._chat()
+        if self._last_edit:
+            path, lines = self._last_edit
+            chat.write(Text(f"📝 Last edit: {path} ({lines} lines)", style=PALETTE["blue"]))
+        else:
+            chat.write(Text("   (no edits yet in this session)", style=PALETTE["dim"]))
 
     def _resume_session(self, arg: str) -> None:
         """List recent sessions or resume one by ID."""
@@ -663,6 +695,16 @@ class TuaTuiApp(App):
             mark, colour = ("✅", PALETTE["green"]) if ok else ("⚠️", PALETTE["red"])
             chat.write(Text(f"   {mark} {event.result.name.replace('_', ' ')}", style=colour))
             self._tools_run += 1
+            if ok and event.result.name in ("write", "edit") and event.result.data:
+                path = event.result.data.get("path", "")
+                if path:
+                    from pathlib import Path
+                    fp = Path(path)
+                    if fp.exists():
+                        lines = len(fp.read_text().splitlines())
+                        self._last_edit = (path, lines)
+                        mark = "✅" if ok else "⚠️"
+                        chat.write(Text(f"   {mark} {fp.name}: {lines} lines", style=PALETTE["dim"]))
         elif isinstance(event, ErrorEvent):
             chat.write(Text(f"❌ {event.message}", style=PALETTE["red"]))
         elif isinstance(event, AgentEndEvent):
