@@ -45,6 +45,7 @@ from tua_agent.rust_system_prompt import RUST_SYSTEM_PROMPT, build_rust_system_p
 from tua_agent.rust_tools import get_rust_tools
 from tua_agent.rust_profiles import get_profile, list_profiles
 from tua_agent.rust_session import RustSessionConfig
+from tua_agent import __version__
 
 app = typer.Typer(
     name="tua",
