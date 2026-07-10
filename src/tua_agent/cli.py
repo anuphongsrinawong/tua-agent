@@ -112,9 +112,11 @@ def main(
             ok = anyio.run(
                 _run_print_mode,
                 prompt,
-                model or _detect_model(),
+                _default_model(model, provider),
                 work_dir,
                 rust_profile,
+                provider,
+                session_id,
             )
             if not ok:
                 raise typer.Exit(1)
@@ -126,7 +128,13 @@ def main(
         _detect_and_print_rust_project(work_dir)
         typer.echo("🖥️  Launching Tua TUI...")
         from tua_agent.tui import TuaTuiApp
-        app = TuaTuiApp(profile=rust_profile.name, model=model, cwd=work_dir)
+        app = TuaTuiApp(
+            profile=rust_profile.name,
+            model=model,
+            cwd=work_dir,
+            provider=provider,
+            session_id=session_id,
+        )
         app.run()
 
 
@@ -579,11 +587,13 @@ async def _run_print_mode(
     model: str,
     cwd: Path,
     rust_profile,
+    provider_name: str | None = None,
+    session_id: str | None = None,
 ) -> bool:
     """Run a one-shot prompt with Rust-specialized agent."""
     settings = load_provider_settings()
     shell_settings = load_shell_settings()
-    selection = resolve_provider_selection(settings, model=model)
+    selection = resolve_provider_selection(settings, provider_name=provider_name, model=model)
     provider = create_model_provider(
         selection.provider,
         model=selection.model,
@@ -612,7 +622,8 @@ async def _run_print_mode(
     full_system = RUST_SYSTEM_PROMPT + "\n\n" + profile_context
 
     manager = SessionManager()
-    record = manager.create_session(cwd=cwd, model=selection.model)
+    record = _session_record(manager, session_id, cwd=cwd, model=selection.model,
+                             provider_name=selection.provider.name)
 
     try:
         config = CodingSessionConfig(
@@ -645,6 +656,74 @@ async def _run_print_mode(
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────
+
+
+def _default_model(model: str | None, provider: str | None) -> str | None:
+    """Pick the model to request, deferring to a provider's default when only --provider is given."""
+    if model:
+        return model
+    if provider:
+        return None  # let resolve_provider_selection use the provider's default
+    return _detect_model()
+
+
+def _print_sessions(manager: SessionManager, cwd: Path | None = None) -> None:
+    """List recent sessions (newest first), scoped to ``cwd`` when given."""
+    records = manager.list_sessions(cwd)
+    if not records:
+        typer.echo("No sessions found.")
+        return
+    typer.echo(f"{'ID':<34} {'Model':<20} {'Updated':<17} Title")
+    typer.echo("-" * 90)
+    for record in records[:20]:
+        when = strftime("%Y-%m-%d %H:%M", localtime(record.updated_at))
+        title = _short_title(record.title)
+        typer.echo(f"{record.id:<34} {record.model:<20} {when:<17} {title}")
+
+
+def _short_title(title: str | None) -> str:
+    raw = (title or "Untitled").strip().replace("\n", " ")
+    return raw if len(raw) <= 28 else raw[:27] + "…"
+
+
+def _resolve_session_id(resume: str | None, work_dir: Path) -> str | None:
+    """Resolve ``--resume`` into a concrete session id, or list/exit."""
+    if not resume:
+        return None
+    token = resume.strip().lower()
+    manager = SessionManager()
+    if token in {"list", "ls", "?"}:
+        _print_sessions(manager, work_dir)
+        raise typer.Exit(0)
+    if token in {"last", "latest", "-"}:
+        record = manager.latest_session_for_cwd(work_dir)
+        if record is None:
+            typer.echo("❌ No previous session found for this directory.", err=True)
+            raise typer.Exit(1)
+        typer.echo(f"↩️  Resuming last session: {record.id}")
+        return record.id
+    record = manager.get_session(resume)
+    if record is None:
+        typer.echo(f"❌ No session with id: {resume}", err=True)
+        typer.echo("   Use `tua sessions` to list available sessions.", err=True)
+        raise typer.Exit(1)
+    return record.id
+
+
+def _session_record(
+    manager: SessionManager,
+    session_id: str | None,
+    *,
+    cwd: Path,
+    model: str,
+    provider_name: str,
+):
+    """Return an existing session record to resume, else create a new one."""
+    if session_id:
+        existing = manager.get_session(session_id)
+        if existing is not None:
+            return existing
+    return manager.create_session(cwd=cwd, model=model, provider_name=provider_name)
 
 
 def _print_profiles() -> None:

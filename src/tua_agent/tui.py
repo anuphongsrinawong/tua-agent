@@ -114,14 +114,16 @@ def _detect_cargo_project(cwd: Path) -> dict[str, object]:
 
 
 def _count_rust_files(cwd: Path) -> int:
-    """Best-effort count of ``.rs`` source files under ``src/``."""
+    """Count .rs files in the project (excluding target/)."""
     src = cwd / "src"
-    if not src.is_dir():
+    if not src.exists():
         return 0
-    try:
-        return sum(1 for _ in src.rglob("*.rs"))
-    except OSError:
-        return 0
+    return sum(1 for _ in src.rglob("*.rs"))
+
+
+def _count_files(cwd: Path) -> int:
+    """Count all files in a directory recursively."""
+    return sum(1 for p in cwd.rglob("*") if p.is_file())
 
 
 def _tool_status() -> list[tuple[str, str, bool]]:
@@ -257,6 +259,34 @@ class TuaTuiApp(App):
         lines.append(f"  [@{dim}]deps    :[/] {info.get('deps', 0)}")
         lines.append(f"  [@{dim}]files   :[/] {_count_rust_files(self.cwd)} .rs")
         lines.append(f"  [@{dim}]path    :[/] [@{dim}]{_short(str(self.cwd), 28)}[/]")
+        lines.append("")
+        lines.append(self._render_file_tree())
+        return "\n".join(lines)
+
+    def _render_file_tree(self, max_depth: int = 2, max_files: int = 15) -> str:
+        """Render a simple file tree for the project."""
+        dim, rust = PALETTE["dim"], PALETTE["rust"]
+        src = self.cwd / "src"
+        if not src.exists():
+            return f"  [@{dim}](no src/ directory)[/]"
+        lines = [f"  [@{PALETTE['accent']} bold]📂 Files[/]"]
+        count = 0
+        for path in sorted(src.rglob("*")):
+            if count >= max_files:
+                lines.append(f"  [@{dim}]  ... ({_count_files(src)} files total)[/]")
+                break
+            rel = path.relative_to(src)
+            depth = len(rel.parts) - 1
+            if depth > max_depth:
+                continue
+            prefix = "  " + "  " * depth + ("└── " if depth > 0 else "")
+            name = rel.name
+            if path.is_dir():
+                lines.append(f"  [@{dim}]{prefix}📁 {name}/[/]")
+            else:
+                ext_colour = rust if name.endswith(".rs") else dim
+                lines.append(f"  [@{ext_colour}]{prefix}{name}[/]")
+            count += 1
         return "\n".join(lines)
 
     def _render_profile(self) -> str:
@@ -396,6 +426,8 @@ class TuaTuiApp(App):
             self._show_config()
         elif cmd == "/model":
             self._switch_model(arg)
+        elif cmd == "/resume":
+            self._resume_session(arg)
         elif cmd == "/profile":
             self._switch_profile(arg)
         else:
@@ -466,6 +498,26 @@ class TuaTuiApp(App):
         self.requested_model = arg
         self._invalidate_session()
         chat.write(Text(f"✅ Switched model to ", style=PALETTE["green"]) + Text(arg, style=PALETTE["rust"]))
+
+    def _resume_session(self, arg: str) -> None:
+        """List recent sessions or resume one by ID."""
+        chat = self._chat()
+        sessions_dir = Path.home() / ".tau" / "sessions"
+        if not arg:
+            chat.write(Text("📂 Recent sessions", style=PALETTE["blue"]))
+            if not sessions_dir.exists():
+                chat.write(Text("   (no sessions found)", style=PALETTE["dim"]))
+                return
+            dirs = sorted(sessions_dir.iterdir(), key=lambda d: d.stat().st_mtime, reverse=True)[:10]
+            for d in dirs:
+                if d.is_dir() and (d / "index.jsonl").exists():
+                    mtime = d.stat().st_mtime
+                    from datetime import datetime
+                    ts = datetime.fromtimestamp(mtime).strftime("%m-%d %H:%M")
+                    chat.write(Text(f"   {d.name[:20]:<22} {ts}", style=PALETTE["dim"]))
+            chat.write(Text("   /resume <id> to resume a session", style=PALETTE["dim"]))
+            return
+        chat.write(Text(f"✅ Resume not yet implemented for session: {arg}", style=PALETTE["yellow"]))
 
     def _list_skills(self) -> None:
         chat = self._chat()
