@@ -41,16 +41,15 @@ class TuaConfig:
         """Load config from project and user directories."""
         config = cls()
 
+        user_config, project_config = config_paths(project_dir)
+
         # Load user-global config
-        user_config = Path.home() / ".tua" / "config.toml"
         if user_config.exists():
             config._merge(user_config)
 
         # Load project config (overrides user)
-        if project_dir:
-            project_config = project_dir / ".tua" / "config.toml"
-            if project_config.exists():
-                config._merge(project_config)
+        if project_config.exists():
+            config._merge(project_config)
 
         return config
 
@@ -93,3 +92,15 @@ class TuaConfig:
 def load_config(project_dir: Path | None = None) -> TuaConfig:
     """Convenience function to load Tua configuration."""
     return TuaConfig.load(project_dir)
+
+
+def config_paths(project_dir: Path | None = None) -> tuple[Path, Path]:
+    """Return ``(user_global, project)`` config file paths.
+
+    The files may not exist yet — this only reports where Tua looks. The project
+    path is ``<project_dir>/.tua/config.toml`` (or the current directory when no
+    ``project_dir`` is given); the user-global path is ``~/.tua/config.toml``.
+    """
+    user_config = Path.home() / ".tua" / "config.toml"
+    project_config = (project_dir or Path.cwd()) / ".tua" / "config.toml"
+    return user_config, project_config
