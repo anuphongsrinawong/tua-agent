@@ -229,7 +229,7 @@ class TuaTuiApp(App):
                 yield RichLog(id="chat", markup=False, wrap=True, auto_scroll=True, highlight=False)
                 yield Input(placeholder="Ask Tua about your Rust project, or type /help …", id="prompt")
         yield Static(
-            "  /help   /profile   /tools   /skills   /clear          Ctrl+C to quit",
+            "  /help   /profile   /tools   /skills   /config   /clear          Ctrl+C to quit",
             id="footer-bar",
         )
 
@@ -366,6 +366,8 @@ class TuaTuiApp(App):
                 chat.write(Text(f"   {mark} {display:<13}", style=colour) + Text(f" {binary}", style=PALETTE["dim"]))
         elif cmd == "/skills":
             self._list_skills()
+        elif cmd == "/config":
+            self._show_config()
         elif cmd == "/profile":
             self._switch_profile(arg)
         else:
@@ -394,6 +396,28 @@ class TuaTuiApp(App):
             Text(f"✅ Switched to profile {new_profile.emoji} ", style=PALETTE["green"])
             + Text(new_profile.name, style=PALETTE["rust"])
         )
+
+    def _show_config(self) -> None:
+        """Display current Tua configuration in chat."""
+        from tua_agent.config import TuaConfig
+        chat = self._chat()
+        cfg = TuaConfig.load(self.cwd)
+        chat.write(Text("🦀  Tua Configuration", style=PALETTE["blue"]))
+        for section, items in [
+            ("Profile", [("default", cfg.default_profile)]),
+            ("Tools", [("timeout", str(cfg.tool_timeout)), ("max_output_chars", str(cfg.max_output_chars))]),
+            ("Dashboard", [("host", cfg.dashboard_host), ("port", str(cfg.dashboard_port))]),
+            ("Rust", [("edition", cfg.rust_edition), ("clippy_pedantic", str(cfg.clippy_pedantic)), ("require_doc_tests", str(cfg.require_doc_tests))]),
+        ]:
+            chat.write(Text(f"  [{section}]", style=PALETTE["rust"]))
+            for k, v in items:
+                chat.write(Text(f"    {k} = {v}", style=PALETTE["dim"]))
+        chat.write(Text(f"\n  Config files:", style=PALETTE["dim"]))
+        chat.write(Text(f"    ~/.tua/config.toml", style=PALETTE["dim"]))
+        user_cfg = Path.home() / ".tua" / "config.toml"
+        proj_cfg = self.cwd / ".tua" / "config.toml"
+        chat.write(Text(f"    {'✅' if user_cfg.exists() else '⬜'} {user_cfg}", style=PALETTE["dim"]))
+        chat.write(Text(f"    {'✅' if proj_cfg.exists() else '⬜'} {proj_cfg}", style=PALETTE["dim"]))
 
     def _list_skills(self) -> None:
         chat = self._chat()

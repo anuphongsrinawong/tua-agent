@@ -164,6 +164,54 @@ src/tua_agent/
 
 ---
 
+## Configuration
+
+Tua reads config from two locations (project overrides global):
+
+```
+~/.tua/config.toml              ← User-global defaults
+<project>/.tua/config.toml      ← Project-specific overrides
+```
+
+### Setup
+
+```bash
+tua init                  # Create both global + project config
+tua init --global         # User-global only
+tua init --project        # Project only
+```
+
+### View & Edit
+
+```bash
+tua config show                              # Show current config
+tua config set profile.default strict        # Change default profile
+tua config set tools.timeout 300             # Set tool timeout
+tua config set rust.clippy_pedantic true     # Enable pedantic clippy
+```
+
+### Config Keys
+
+| Section | Key | Default | Description |
+|---|---|---|---|
+| `profile` | `default` | `"rustacean"` | Default Rust coding profile |
+| `tools` | `timeout` | `600` | Tool execution timeout (seconds) |
+| `tools` | `max_output_chars` | `16000` | Max chars in tool output |
+| `dashboard` | `host` | `"127.0.0.1"` | Dashboard bind address |
+| `dashboard` | `port` | `8765` | Dashboard port |
+| `rust` | `edition` | `"2021"` | Default Rust edition |
+| `rust` | `clippy_pedantic` | `false` | Enforce clippy pedantic lints |
+| `rust` | `require_doc_tests` | `false` | Require doc-tests on public API |
+
+### Provider Config
+
+```bash
+tua providers              # Show configured model providers
+```
+
+Provider settings live in `~/.tau/` (managed by Tau).
+
+
 ## Benchmarks
 
 Tua Agent produces **production-grade Rust code** vs generic agents:
