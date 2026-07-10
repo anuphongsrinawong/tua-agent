@@ -82,8 +82,11 @@ def main(
     ensure_skills_installed()  # Copy bundled skills to ~/.tau/skills if needed
     
     # Use config default profile if not explicitly set
-    if profile == "rustacean" and tua_cfg.default_profile != "rustacean":
-        profile = tua_cfg.default_profile
+    if profile == "rustacean":
+        cfg_default = tua_cfg.default_profile
+        if cfg_default != "rustacean":
+            profile = cfg_default
+            rust_profile = get_profile(profile)  # re-resolve with config default
 
     typer.echo(f"🦀  Tua Agent v{__version__} — profile: {rust_profile.emoji} {rust_profile.name}")
     typer.echo(f"    {rust_profile.description}")

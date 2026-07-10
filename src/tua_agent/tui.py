@@ -19,6 +19,7 @@ from os import environ
 from pathlib import Path
 from time import monotonic
 
+from rich.syntax import Syntax
 from rich.text import Text
 from textual import work
 from textual.app import App, ComposeResult
@@ -287,9 +288,13 @@ class TuaTuiApp(App):
         lines = [f"\n[@{PALETTE['accent']} bold]📊 Stats[/]"]
         lines.append(f"  [@{dim}]messages :[/] {self._messages}")
         lines.append(f"  [@{dim}]tools    :[/] {self._tools_run}")
-        lines.append(f"  [@{dim}]tokens   :[/] {self._tokens or '—'}")
+        lines.append(f"  [@{dim}]tokens   :[/] ~{self._tokens or '—'}")
         lines.append(f"  [@{dim}]time     :[/] {elapsed}")
         lines.append(f"  [@{dim}]model    :[/] [@{dim}]{_short(str(model), 22)}[/]")
+        # Cost estimate (DeepSeek ~$0.07/M input, ~$0.27/M output)
+        if self._tokens:
+            est_cost = self._tokens * 0.00000027  # rough blended rate
+            lines.append(f"  [@{dim}]est cost :[/] ~${est_cost:.4f}")
         return "\n".join(lines)
 
     def _refresh_sidebar(self) -> None:
@@ -316,13 +321,33 @@ class TuaTuiApp(App):
         chat.write(Text("   Type a Rust question or task, or use /help, /profile, /tools, /skills, /clear.", style=PALETTE["dim"]))
 
     def _flush_assistant(self) -> None:
-        """Write any buffered assistant deltas as one chat block."""
+        """Write any buffered assistant deltas as one chat block with syntax highlighting."""
         body = self._assistant_buf.strip()
         self._assistant_buf = ""
-        if body:
-            self._messages += 1
-            self._chat().write(Text(f"🤖 {body}", style=PALETTE["text"]))
-            self._refresh_stats()
+        if not body:
+            return
+        self._messages += 1
+        self._tokens += len(body) // 4 + 1  # rough estimate: ~4 chars per token
+        chat = self._chat()
+        # Split markdown code blocks and render with syntax highlighting
+        parts = body.split("```")
+        for i, part in enumerate(parts):
+            if i % 2 == 0:
+                # Normal text
+                if part.strip():
+                    chat.write(Text(part.strip(), style=PALETTE["text"]))
+            else:
+                # Code block — detect language
+                lines = part.split("\n", 1)
+                lang = lines[0].strip() if lines else ""
+                code = lines[1] if len(lines) > 1 else ""
+                if not lang:
+                    lang = "rust"  # default for Tua
+                try:
+                    chat.write(Syntax(code.strip(), lang, theme="monokai", line_numbers=False, word_wrap=True))
+                except Exception:
+                    chat.write(Text(code.strip(), style=PALETTE["dim"]))
+        self._refresh_stats()
 
     # ── Input handling ────────────────────────────────────────────────────────
 
@@ -335,6 +360,7 @@ class TuaTuiApp(App):
             self._handle_command(text)
             return
         self._messages += 1
+        self._tokens += len(text) // 4 + 1
         self._chat().write(Text("🧑 ", style=PALETTE["green"]) + Text(text, style=PALETTE["text"]))
         self._refresh_stats()
         self._run_agent(text)
@@ -516,14 +542,18 @@ class TuaTuiApp(App):
         try:
             try:
                 session = await self._ensure_session()
-            except Exception as exc:  # no API key / provider misconfiguration, etc.
-                chat.write(Text(f"⚠️  {exc}", style=PALETTE["yellow"]))
-                chat.write(
-                    Text(
-                        "   Configure a provider/API key, then ask again. Use -p for non-interactive mode.",
-                        style=PALETTE["dim"],
-                    )
-                )
+            except Exception as exc:
+                msg = str(exc)
+                chat.write(Text(f"⚠️  {msg}", style=PALETTE["yellow"]))
+                if "API key" in msg or "Missing provider" in msg or "credentials" in msg.lower():
+                    chat.write(Text("   💡 Run `tua providers` to see configured providers.", style=PALETTE["dim"]))
+                    chat.write(Text("   💡 Set your API key: export PROVIDER_API_KEY=sk-...", style=PALETTE["dim"]))
+                    chat.write(Text("   💡 Or use 9Router (free): tua config set provider.default 9router", style=PALETTE["dim"]))
+                elif "model" in msg.lower():
+                    chat.write(Text("   💡 Use `tua providers` to list available models.", style=PALETTE["dim"]))
+                    chat.write(Text("   💡 Try: tua --model glm/glm-5.2 -p \"your prompt\"", style=PALETTE["dim"]))
+                else:
+                    chat.write(Text("   💡 Check `tua config show` and `tua providers` for setup help.", style=PALETTE["dim"]))
                 return
 
             chat.write(Text("🤖 …", style=PALETTE["rust"]))
