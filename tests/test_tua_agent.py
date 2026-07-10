@@ -279,8 +279,8 @@ class TestSkills:
 
     @staticmethod
     def _skills_dir() -> Path:
-        # tests/ is one level below the repo root that holds .tau/skills/.
-        return Path(__file__).resolve().parent.parent / ".tau" / "skills"
+        # Skills live in the package: src/tua_agent/data/skills/
+        return Path(__file__).resolve().parent.parent / "src" / "tua_agent" / "data" / "skills"
 
     def test_ten_skill_directories_exist(self):
         skills = self._skills_dir()
