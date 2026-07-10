@@ -76,7 +76,10 @@ def main(
     
     # Load config for defaults
     from tua_agent.config import TuaConfig
+    from tua_agent.rust_skills_loader import ensure_skills_installed
+
     tua_cfg = TuaConfig.load(work_dir)
+    ensure_skills_installed()  # Copy bundled skills to ~/.tau/skills if needed
     
     # Use config default profile if not explicitly set
     if profile == "rustacean" and tua_cfg.default_profile != "rustacean":
