@@ -15,6 +15,7 @@ import asyncio
 import re
 from os import environ
 from pathlib import Path
+from time import localtime, strftime
 
 import anyio
 import typer
@@ -53,6 +54,15 @@ def main(
     profile: str = typer.Option("rustacean", "--profile", help="Rust coding profile to use"),
     list_profiles_flag: bool = typer.Option(False, "--list-profiles", help="List available profiles"),
     model: str = typer.Option(None, "--model", "-m", help="Model to use"),
+    provider: str | None = typer.Option(
+        None, "--provider", help="Provider to use (e.g. deepseek, 9router, openai-codex)"
+    ),
+    resume: str | None = typer.Option(
+        None,
+        "--resume",
+        "-r",
+        help="Resume a session by id ('last' for most recent, 'list' to choose)",
+    ),
     cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
 ):
     """🦀 Tua Agent — Rust-specialized coding agent."""
@@ -73,6 +83,9 @@ def main(
 
     # Resolve CWD
     work_dir = Path(cwd).resolve() if cwd else Path.cwd()
+
+    # Resolve --resume into a concrete session id (or list/exit).
+    session_id = _resolve_session_id(resume, work_dir)
     
     # Load config for defaults
     from tua_agent.config import TuaConfig

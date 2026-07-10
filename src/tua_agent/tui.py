@@ -230,7 +230,7 @@ class TuaTuiApp(App):
                 yield RichLog(id="chat", markup=False, wrap=True, auto_scroll=True, highlight=False)
                 yield Input(placeholder="Ask Tua about your Rust project, or type /help …", id="prompt")
         yield Static(
-            "  /help   /profile   /tools   /skills   /config   /clear          Ctrl+C to quit",
+            "  /help   /profile   /tools   /skills   /model   /config   /clear          Ctrl+C to quit",
             id="footer-bar",
         )
 
@@ -394,6 +394,8 @@ class TuaTuiApp(App):
             self._list_skills()
         elif cmd == "/config":
             self._show_config()
+        elif cmd == "/model":
+            self._switch_model(arg)
         elif cmd == "/profile":
             self._switch_profile(arg)
         else:
@@ -444,6 +446,26 @@ class TuaTuiApp(App):
         proj_cfg = self.cwd / ".tua" / "config.toml"
         chat.write(Text(f"    {'✅' if user_cfg.exists() else '⬜'} {user_cfg}", style=PALETTE["dim"]))
         chat.write(Text(f"    {'✅' if proj_cfg.exists() else '⬜'} {proj_cfg}", style=PALETTE["dim"]))
+
+    def _switch_model(self, arg: str) -> None:
+        """List or switch the AI model via /model [name]."""
+        chat = self._chat()
+        if not arg:
+            chat.write(Text("🤖 Available models", style=PALETTE["blue"]))
+            try:
+                from tau_coding.provider_config import load_provider_settings
+                settings = load_provider_settings()
+                for provider in settings.providers:
+                    models = getattr(provider, 'models', [])
+                    for m in models:
+                        active = " ←" if m == self._resolved_model else ""
+                        chat.write(Text(f"   {provider.name}/{m}{active}", style=PALETTE["dim"]))
+            except Exception as e:
+                chat.write(Text(f"   ⚠️ {e}", style=PALETTE["yellow"]))
+            return
+        self.requested_model = arg
+        self._invalidate_session()
+        chat.write(Text(f"✅ Switched model to ", style=PALETTE["green"]) + Text(arg, style=PALETTE["rust"]))
 
     def _list_skills(self) -> None:
         chat = self._chat()
