@@ -15,7 +15,6 @@ import os
 import shutil
 import tempfile
 from collections.abc import Mapping
-from pathlib import Path
 
 from tau_agent.tools import AgentTool, AgentToolResult, ToolCancellationToken
 from tau_agent.types import JSONValue
@@ -1006,7 +1005,7 @@ def get_rust_tool_names() -> set[str]:
 # Small stand-in for contextlib.suppress used by the edition probe cleanup. Kept
 # local to avoid pulling contextlib into the hot import path elsewhere.
 class contextlib_suppress:
-    def __enter__(self) -> "contextlib_suppress":
+    def __enter__(self) -> contextlib_suppress:
         return self
 
     def __exit__(self, *_exc: object) -> bool:

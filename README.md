@@ -1,5 +1,5 @@
 <p align="center">
-  <strong>🦀 Tua Agent</strong><br/>
+  <strong>🦀 Tua Agent v0.0.1</strong><br/>
   <em>A Rust-specialized AI coding agent — built on Tau</em>
 </p>
 
@@ -8,77 +8,190 @@
 ## What is Tua Agent?
 
 **Tua (ตัว) Agent** is a coding agent that lives in your terminal and *loves Rust*.
-It's built on [Tau](https://github.com/alejandro-ao/tau)'s minimalist agent harness,
+Built on [Tau](https://github.com/alejandro-ao/tau)'s minimalist agent harness,
 specialized with deep Rust knowledge: ownership, lifetimes, traits, async, macros,
 unsafe, cargo, and the entire ecosystem.
 
-```text
+Tua is a **real agent** — it reads files, runs cargo commands, writes code,
+and validates results autonomously.
+
+```
 tua_agent 🦀  →  tau_coding  →  tau_agent  →  tau_ai
 (Rust expert)    (CLI/TUI)     (agent brain)  (providers)
 ```
 
-## Why Tua over vanilla Tau?
+## Features
 
-| Feature | Tau | Tua Agent |
-|---|---|---|
-| System prompt | General coding | Rust expert + borrow checker mindset |
-| Built-in tools | read, write, edit, bash | + cargo, rustc, clippy, rustfmt, rustup |
-| Rust profiles | None | 8 profiles (Ferris, BorrowChecker, Rustacean...) |
-| CLI | `tau` | `tua` (auto-detects Rust projects) |
-| Dashboard | None | Web dashboard for project health |
+| Feature | Details |
+|---|---|
+| 🧠 **Rust System Prompt** | 4,087 chars, 20/20 Rust topics (ownership to SemVer) |
+| 🔧 **13 Rust Tools** | cargo, rustc, rustfmt, clippy, rustup, audit, outdated, udeps, deny, bench, doc, test-doc, wasm-pack |
+| 📋 **8 Profiles** | Ferris, BorrowChecker, Rustacean, CargoCult, UnsafeFerris, TestCrab, DocCrab, Strict |
+| 📚 **10 Skills** | Ownership, lifetimes, async, error-handling, macros, testing, smart-pointers, concurrency, cargo-workspace, wasm |
+| 🖥️ **TUI** | Textual-based terminal interface with chat + project info |
+| 🌐 **Dashboard** | Web UI for Rust project health (build status, clippy, LOC) |
+| 🐳 **systemd Service** | Auto-start dashboard on boot |
+
+---
 
 ## Quickstart
 
-```bash
-cd ~/tua-agent
-uv sync --dev
+### Install
 
-# Start Tua in a Rust project
+```bash
+git clone https://github.com/anuphongsrinawong/tua-agent.git
+cd tua-agent
+uv sync --dev
+```
+
+### Provider Setup (9Router — free)
+
+Tua defaults to 9Router (GLM-5.2). Already configured in `~/.tau/`:
+
+```bash
+# Verify
+uv run tua --help
+```
+
+To use other providers (DeepSeek, OpenAI), set the API key:
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+uv run tua -p "run cargo check" --model deepseek-chat
+```
+
+---
+
+## Usage
+
+### Interactive TUI
+
+```bash
 cd my-rust-project
 uv run tua
-
-# Or one-shot
-uv run tua -p "add unit tests for the auth module"
-uv run tua -p "fix all clippy warnings"
-uv run tua --profile borrow-checker
+# Launches Textual TUI with chat, project info, and tool status
 ```
 
-## Rust-Specific Commands
+### One-Shot Agent Mode
 
-Inside the Tua TUI:
+```bash
+# Ask Tua to do a task — it reads files, uses tools, writes code
+uv run tua -p "add serde+toml, write config parser with validation"
 
+# With a specific profile
+uv run tua -p "find and fix all clippy warnings" --profile strict
+
+# Use a different model
+uv run tua -p "explain this borrow checker error" --model glm/glm-5.2
 ```
-/cargo build          Build the project
-/cargo test           Run tests
-/cargo clippy         Run clippy lints
-/cargo fmt            Format code
-/cargo bench          Run benchmarks
-/cargo audit          Security audit dependencies
-/rustc explain E0502  Explain a compiler error
-/profile ferris        Switch to Ferris (beginner-friendly) profile
-/profile strict        Switch to Strict (max guardrails) profile
+
+### CLI Commands
+
+```bash
+tua dashboard          # Start web dashboard (http://127.0.0.1:8765)
+tua profiles           # List all 8 Rust coding profiles
+tua check              # Run cargo check
+tua fix                # Run cargo clippy --fix
+tua fmt                # Run cargo fmt
+tua fmt --check        # Check formatting only
+tua audit              # Run cargo audit (security)
+tua test               # Run cargo test
+tua --list-profiles    # Show profile comparison
 ```
+
+### Profiles
+
+Select a profile to change the agent's Rust coding style:
+
+```bash
+tua --profile ferris          # 🦀 Beginner-friendly, patient
+tua --profile borrow-checker  # 🔍 Strict lifetime auditing
+tua --profile rustacean       # 🚀 Production-grade (default)
+tua --profile cargo-cult      # 📦 Dependency expert
+tua --profile unsafe-ferris   # ⚡ FFI and unsafe Rust
+tua --profile test-crab       # 🧪 Test-obsessed
+tua --profile doc-crab        # 📚 Documentation-first
+tua --profile strict          # 🛡️ All guardrails enabled
+```
+
+---
+
+## Dashboard
+
+```bash
+tua dashboard --host 0.0.0.0 --port 8765
+# Open http://localhost:8765
+```
+
+Shows real-time:
+- 📦 Project info (crate name, version, edition, dependencies)
+- 🔨 Build status (check, build, test)
+- 📐 Code quality (clippy warnings, rustfmt, LOC)
+- 🦀 Active Rust profile with guardrails
+- 🤖 Agent session status
+
+---
 
 ## Rust Coding Profiles
 
-| Profile | Best For |
-|---|---|
-| 🦀 **Ferris** | Teaching Rust, onboarding |
-| 🔍 **BorrowChecker** | Debugging ownership |
-| 🚀 **Rustacean** | Production code |
-| 📦 **CargoCult** | Dependency management |
-| ⚡ **UnsafeFerris** | FFI, unsafe blocks |
-| 🧪 **TestCrab** | Testing, TDD |
-| 📚 **DocCrab** | API design, docs |
-| 🛡️ **Strict** | Mission-critical Rust |
+| Profile | Guardrails | Use When |
+|---|---|---|
+| 🦀 **Ferris** | no-unsafe, doc-tests | Teaching, onboarding |
+| 🔍 **BorrowChecker** | clippy-pedantic | Debugging ownership |
+| 🚀 **Rustacean** | no-unwrap, doc-tests | Production code |
+| 📦 **CargoCult** | (relaxed) | Dependency management |
+| ⚡ **UnsafeFerris** | (relaxed) | FFI, embedded |
+| 🧪 **TestCrab** | doc-tests | TDD, property testing |
+| 📚 **DocCrab** | doc-tests | API design, public crates |
+| 🛡️ **Strict** | no-unwrap, no-unsafe, doc-tests, clippy-pedantic | Mission-critical |
+
+---
+
+## Project Structure
+
+```
+src/tua_agent/
+├── cli.py                 # CLI + Agent loop wiring
+├── tui.py                 # Textual TUI (678 lines)
+├── rust_system_prompt.py  # Rust expert prompt (4,087 chars)
+├── rust_tools.py          # 13 Rust tools + real executors
+├── rust_profiles.py       # 8 coding profiles
+├── rust_session.py        # Profile → guidelines converter
+├── config.py              # .tua/config.toml loader
+├── dashboard.py           # Web dashboard (http.server)
+└── __init__.py
+```
+
+---
+
+## Benchmarks
+
+Tua Agent produces **production-grade Rust code** vs generic agents:
+
+| Metric | Default Agent | Tua Agent |
+|---|---|---|
+| `unwrap()` in prod | 5 ❌ | 0 ✅ |
+| Doc comments | 0 ❌ | 19-56 ✅ |
+| Clippy warnings | 3 ❌ | 0 ✅ |
+| Works on real input | PANIC ❌ | 33,719 files ✅ |
+| Proper error types | tuples ❌ | enum + thiserror ✅ |
+
+*Full benchmark: see [comparison report](https://github.com/anuphongsrinawong/tua-agent)*
+
+---
 
 ## Development
 
 ```bash
 cd ~/tua-agent
 uv sync --dev
-uv run pytest
-uv run ruff check .
+
+# Run tests
+PYTHONPATH=src uv run pytest tests/test_tua_agent.py -v
+# 30 tests passed
+
+# Lint
+uv run ruff check src/tua_agent/
 ```
 
 ## License

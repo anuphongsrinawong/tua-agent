@@ -12,21 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import re
-import sys
 from os import environ
 from pathlib import Path
 
 import anyio
 import typer
 
-from tau_agent.session import JsonlSessionStorage
-from tau_ai import ModelProvider
-from tau_ai.env import DEFAULT_OPENAI_COMPATIBLE_BASE_URL
-from tau_coding.credentials import FileCredentialStore
 from tau_coding.provider_config import (
-    DEFAULT_MODEL,
-    DEFAULT_PROVIDER_NAME,
-    ProviderSettings,
     load_provider_settings,
     resolve_provider_selection,
 )
@@ -40,12 +32,11 @@ from tau_coding.session import (
 from tau_coding.session_manager import SessionManager
 from tau_coding.shell_config import load_shell_settings
 from tau_coding.thinking import DEFAULT_THINKING_LEVEL
-
-from tua_agent.rust_system_prompt import RUST_SYSTEM_PROMPT, build_rust_system_prompt
-from tua_agent.rust_tools import get_rust_tools
+from tua_agent import __version__
 from tua_agent.rust_profiles import get_profile, list_profiles
 from tua_agent.rust_session import RustSessionConfig
-from tua_agent import __version__
+from tua_agent.rust_system_prompt import RUST_SYSTEM_PROMPT
+from tua_agent.rust_tools import get_rust_tools
 
 app = typer.Typer(
     name="tua",
@@ -78,7 +69,7 @@ def main(
     # Resolve CWD
     work_dir = Path(cwd).resolve() if cwd else Path.cwd()
 
-    typer.echo(f"🦀  Tua Agent v0.1.0 — profile: {rust_profile.emoji} {rust_profile.name}")
+    typer.echo(f"🦀  Tua Agent v{__version__} — profile: {rust_profile.emoji} {rust_profile.name}")
     typer.echo(f"    {rust_profile.description}")
 
     if prompt:
@@ -99,14 +90,15 @@ def main(
             typer.echo(f"❌ Error: {exc}", err=True)
             raise typer.Exit(1)
     else:
-        # ── Interactive / Help ───────────────────────────────────────────
+        # ── Interactive TUI ───────────────────────────────────────────
         _detect_and_print_rust_project(work_dir)
-        typer.echo("\n📟  Interactive TUI coming in next release.")
-        typer.echo("    Use -p 'prompt' for one-shot mode in the meantime.")
-        typer.echo(f"    Example: tua -p 'run cargo check on this project' --cwd ~/my-rust-project")
+        typer.echo("🖥️  Launching Tua TUI...")
+        from tua_agent.tui import TuaTuiApp
+        app = TuaTuiApp(profile=rust_profile, cwd=work_dir)
+        app.run()
 
 
-@app.command()
+@app.command(name="dashboard")
 def dashboard_command(
     host: str = typer.Option("127.0.0.1", "--host", help="Bind address"),
     port: int = typer.Option(8765, "--port", help="Bind port"),
@@ -121,6 +113,72 @@ def dashboard_command(
 def profiles():
     """List all available Rust coding profiles."""
     _print_profiles()
+
+
+@app.command()
+def check(
+    cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
+):
+    """Run cargo check on the current Rust project."""
+    _run_cargo("check", cwd)
+
+
+@app.command()
+def fix(
+    cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
+):
+    """Run cargo clippy --fix to auto-fix warnings."""
+    _run_cargo("clippy", cwd, extra_args=["--fix", "--allow-dirty"])
+
+
+@app.command()
+def fmt(
+    cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
+    check_only: bool = typer.Option(False, "--check", help="Only check formatting"),
+):
+    """Run cargo fmt on the current Rust project."""
+    args = ["--check"] if check_only else []
+    _run_cargo("fmt", cwd, extra_args=args)
+
+
+@app.command()
+def audit(
+    cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
+):
+    """Run cargo audit to check for security vulnerabilities."""
+    _run_cargo("audit", cwd)
+
+
+@app.command()
+def test(
+    cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
+):
+    """Run cargo test on the current Rust project."""
+    _run_cargo("test", cwd)
+
+
+def _run_cargo(subcommand: str, cwd: str | None = None, extra_args: list[str] | None = None):
+    """Run a cargo subcommand and stream output."""
+    import subprocess
+    work_dir = Path(cwd) if cwd else Path.cwd()
+    cmd = ["cargo", subcommand] + (extra_args or [])
+    typer.echo(f"🦀  Running: {' '.join(cmd)}")
+    typer.echo(f"    in: {work_dir}")
+    typer.echo("-" * 60)
+    try:
+        result = subprocess.run(cmd, cwd=work_dir, capture_output=True, text=True, timeout=120)
+        if result.stdout:
+            typer.echo(result.stdout)
+        if result.stderr:
+            typer.echo(result.stderr, err=True)
+        if result.returncode == 0:
+            typer.echo(f"\n✅ cargo {subcommand} passed")
+        else:
+            typer.echo(f"\n❌ cargo {subcommand} failed (exit {result.returncode})")
+            raise typer.Exit(result.returncode)
+    except FileNotFoundError:
+        typer.echo("❌ cargo not found. Is Rust installed?")
+        raise typer.Exit(1)
 
 
 # ── Print mode runner ─────────────────────────────────────────────────────
@@ -147,12 +205,8 @@ async def _run_print_mode(
     guidelines = session_config.build_guidelines()
 
     # Build Rust system prompt
-    from tau_coding.system_prompt import (
-        BuildSystemPromptOptions,
-        build_system_prompt,
-    )
-    from tau_coding.skills import load_skills
     from tau_coding.resources import TauResourcePaths
+    from tau_coding.skills import load_skills
     from tau_coding.tools import create_coding_tools
 
     # Combine standard Tau tools + Rust tools
@@ -238,14 +292,23 @@ def _detect_and_print_rust_project(cwd: Path) -> None:
 
 
 def _detect_model() -> str:
-    """Detect available model from environment."""
+    """Detect available model from environment or provider defaults."""
+    # Check explicit API keys first
     if environ.get("DEEPSEEK_API_KEY"):
         return "deepseek-chat"
     if environ.get("ANTHROPIC_API_KEY"):
         return "claude-sonnet-4-20250514"
     if environ.get("OPENAI_API_KEY"):
         return "gpt-4o"
-    return DEFAULT_MODEL
+    # Fall back to 9Router default model (free, already configured)
+    try:
+        settings = load_provider_settings()
+        if settings.default_provider:
+            prefs = settings.provider_preferences.get(settings.default_provider, {})
+            return prefs.get("default_model", "glm/glm-5.2")
+    except Exception:
+        pass
+    return "glm/glm-5.2"
 
 
 if __name__ == "__main__":

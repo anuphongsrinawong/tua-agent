@@ -13,8 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 HTML_TEMPLATE = r"""<!DOCTYPE html>
@@ -178,7 +177,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         </div>
     </main>
     <footer>
-        🦀 Tua Agent v0.1.0 · Built on Tau · Rust ❤️
+        🦀 Tua Agent v0.0.1 · Built on Tau · Rust ❤️
     </footer>
     <script>
         // Auto-refresh every 5 seconds
@@ -271,8 +270,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
 async def run_dashboard(host: str = "127.0.0.1", port: int = 8765) -> None:
     """Start the Tua Dashboard web server using Python's built-in http.server."""
-    import os
-    from http.server import HTTPServer, BaseHTTPRequestHandler
+    from http.server import BaseHTTPRequestHandler, HTTPServer
 
     html_bytes = HTML_TEMPLATE.encode("utf-8")
 
@@ -305,7 +303,7 @@ async def run_dashboard(host: str = "127.0.0.1", port: int = 8765) -> None:
 
     server = HTTPServer((host, port), DashboardHandler)
     print(f"🦀  Tua Dashboard running at http://{host}:{port}")
-    print(f"   Press Ctrl+C to stop")
+    print("   Press Ctrl+C to stop")
 
     try:
         server.serve_forever()
@@ -320,7 +318,7 @@ def collect_project_status(cwd: Path | None = None) -> dict:
         cwd = Path.cwd()
 
     result: dict = {
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": datetime.now(UTC).isoformat(),
         "project": _collect_project_info(cwd),
         "build": _collect_build_status(cwd),
         "quality": _collect_quality(cwd),

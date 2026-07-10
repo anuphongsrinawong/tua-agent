@@ -10,18 +10,14 @@ from __future__ import annotations
 import re
 from datetime import date
 from pathlib import Path
-from typing import Sequence
 
-from tau_agent.tools import AgentTool
 from tau_coding.system_prompt import (
     BuildSystemPromptOptions,
-    ProjectContextFile,
     format_available_tools,
     format_guidelines,
     format_project_context,
     format_skills_for_prompt,
 )
-from tau_coding.skills import Skill
 
 # ── Rust-Expert System Prompt ──────────────────────────────────────────────
 
