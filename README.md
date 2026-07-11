@@ -25,7 +25,7 @@ tua_agent 🦀  →  tau_coding  →  tau_agent  →  tau_ai
 | Feature | Details |
 |---|---|
 | 🧠 **Rust System Prompt** | 4,087 chars, 20/20 Rust topics (ownership to SemVer) |
-| 🔧 **13 Rust Tools** | cargo, rustc, rustfmt, clippy, rustup, audit, outdated, udeps, deny, bench, doc, test-doc, wasm-pack |
+| 🔧 **14 Rust Tools** | cargo, rustc, rustfmt, clippy, rustup, audit, outdated, udeps, deny, bench, doc, test-doc, wasm-pack, rustc_explain |
 | 📋 **8 Profiles** | Ferris, BorrowChecker, Rustacean, CargoCult, UnsafeFerris, TestCrab, DocCrab, Strict |
 | 📚 **10 Skills** | Ownership, lifetimes, async, error-handling, macros, testing, smart-pointers, concurrency, cargo-workspace, wasm |
 | 🖥️ **TUI** | Textual-based terminal interface with 12 features: chat, syntax highlight, file tree, diff viewer, command palette, multi-session tabs |
@@ -35,6 +35,8 @@ tua_agent 🦀  →  tau_coding  →  tau_agent  →  tau_ai
 | 📑 **Multi-Session** | Tab-based sessions (Ctrl+T/W/Tab) — multiple profiles, independent context |
 | 🌐 **Dashboard** | Web UI for Rust project health (build status, clippy, LOC) |
 | 🐳 **systemd Service** | Auto-start dashboard on boot |
+| 🧠 **AI Intelligence** | Self-correction loop, Chain-of-Thought, git checkpointing, token budgeting, prompt caching, multi-agent review |
+| 📖 **Full Guide** | [GUIDE.md](GUIDE.md) — complete feature reference, constraints, benchmarks |
 
 ---
 
@@ -156,13 +158,16 @@ Shows real-time:
 ```
 src/tua_agent/
 ├── cli.py                 # CLI + Agent loop wiring
-├── tui.py                 # Textual TUI (678 lines)
-├── rust_system_prompt.py  # Rust expert prompt (4,087 chars)
-├── rust_tools.py          # 13 Rust tools + real executors
+├── tui.py                 # Textual TUI (1,489 lines)
+├── rust_system_prompt.py  # Rust expert prompt + Thinking Protocol
+├── rust_tools.py          # 14 Rust tools + real executors
 ├── rust_profiles.py       # 8 coding profiles
 ├── rust_session.py        # Profile → guidelines converter
-├── config.py              # .tua/config.toml loader
+├── config.py              # .tua/config.toml loader + AI settings
 ├── dashboard.py           # Web dashboard (http.server)
+├── intelligence.py        # AI orchestration (#13, #16, #18, #19)
+├── checkpoint.py          # Git checkpoint/rollback helpers (#16)
+├── prompt_cache.py        # Prompt cache layout (#18)
 └── __init__.py
 ```
 
@@ -206,6 +211,21 @@ tua config set rust.clippy_pedantic true     # Enable pedantic clippy
 | `rust` | `edition` | `"2021"` | Default Rust edition |
 | `rust` | `clippy_pedantic` | `false` | Enforce clippy pedantic lints |
 | `rust` | `require_doc_tests` | `false` | Require doc-tests on public API |
+| `ai` | `self_correction` | `true` | Auto cargo-check self-fix loop (#13) |
+| `ai` | `max_self_corrections` | `3` | Max correction turns (#13) |
+| `ai` | `checkpoint_enabled` | `true` | Git checkpoint on green build (#16) |
+| `ai` | `context_limit` | `128000` | Token budget ceiling (#17) |
+| `ai` | `prompt_caching` | `true` | Reorder for cache breakpoints (#18) |
+| `ai` | `review_enabled` | `true` | Background clippy review (#19) |
+
+### AI Intelligence Flags
+
+```bash
+tua -p "add serde" --no-self-correct   # Disable auto-fix loop
+tua -p "add serde" --no-checkpoint     # Disable git snapshots
+tua -p "add serde" --no-cache          # Disable prompt caching
+tua -p "add serde" --no-review         # Disable code review
+```
 
 ### Provider Config
 
