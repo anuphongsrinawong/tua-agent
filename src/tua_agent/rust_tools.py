@@ -973,6 +973,48 @@ WASM_PACK_TOOL = AgentTool(
 )
 
 
+# ── rustc-explain Tool ─────────────────────────────────────────────────────
+
+async def _rustc_explain_executor(
+    arguments: Mapping[str, JSONValue],
+    signal: ToolCancellationToken | None = None,
+) -> AgentToolResult:
+    """Run `rustc --explain E0XXX` and return the compiler's explanation."""
+    error_code = _str_arg(arguments, "error_code")
+    if not error_code.startswith("E"):
+        error_code = f"E{error_code}"
+    return await _run_subprocess(
+        ["rustc", "--explain", error_code],
+        name="rustc_explain",
+        signal=signal,
+    )
+
+
+RUSTC_EXPLAIN_SCHEMA: dict[str, JSONValue] = {
+    "type": "object",
+    "properties": {
+        "error_code": {
+            "type": "string",
+            "description": "Rust compiler error code to explain (e.g., E0502, E0382)",
+        },
+    },
+    "required": ["error_code"],
+}
+
+RUSTC_EXPLAIN_TOOL = AgentTool(
+    name="rustc_explain",
+    description="Get detailed Rust compiler error explanation: rustc --explain <error_code>",
+    input_schema=RUSTC_EXPLAIN_SCHEMA,
+    executor=_rustc_explain_executor,
+    prompt_snippet="rustc_explain <error_code> — Official Rust compiler error explanation",
+    prompt_guidelines=(
+        "Use `rustc_explain E0XXX` whenever cargo check produces an E0XXX error code",
+        "Inject the compiler's explanation into your response to help users understand the error",
+        "Pair with `cargo check` output to detect error codes automatically",
+    ),
+)
+
+
 # ── Tool Registry ──────────────────────────────────────────────────────────
 
 RUST_TOOLS: list[AgentTool] = [
@@ -989,6 +1031,7 @@ RUST_TOOLS: list[AgentTool] = [
     CARGO_DOC_TOOL,
     CARGO_TEST_DOC_TOOL,
     WASM_PACK_TOOL,
+    RUSTC_EXPLAIN_TOOL,
 ]
 
 

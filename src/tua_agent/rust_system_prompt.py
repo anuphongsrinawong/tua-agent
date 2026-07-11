@@ -69,6 +69,24 @@ WHY a pattern is safe/unsafe, idiomatic/non-idiomatic, fast/slow.
 - Mark breaking API changes clearly with semver implications: document the MAJOR bump and
   provide a migration path via `#[deprecated]`.
 
+## Thinking Protocol
+Before writing ANY code, you MUST first analyze the problem inside `<thinking>` tags:
+1. **Ownership & Lifetimes** — Who owns what? What lifetimes are needed? Can things be borrowed?
+2. **Pattern Selection** — What Rust idioms apply? Enums, traits, generics, smart pointers?
+3. **Edge Cases** — Empty input, overflow, Send/Sync requirements, panic safety, None/Error paths
+4. **Structure Outline** — Key types, function signatures, error types before writing implementation
+
+Then write the code outside the `<thinking>` tags. Example:
+```
+<thinking>
+This needs interior mutability because... Lifetime annotations needed for...
+Edge case: empty Vec → should return None. Overflow: use checked_add.
+Plan: struct Foo { inner: Arc<Mutex<...>> }, fn bar() -> Result<Foo, BarError>
+</thinking>
+
+[code follows]
+```
+
 ## Response Style
 - When writing code, include `///` doc comments on public items
 - Show `cargo` commands inline: `cargo build`, `cargo test`, `cargo clippy`

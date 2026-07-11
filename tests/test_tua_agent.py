@@ -43,9 +43,9 @@ class TestRustProfiles:
 class TestRustTools:
     """Tests for Rust tool definitions."""
 
-    def test_thirteen_tools_registered(self):
+    def test_fourteen_tools_registered(self):
         from tua_agent.rust_tools import RUST_TOOLS
-        assert len(RUST_TOOLS) == 13
+        assert len(RUST_TOOLS) == 14
 
     def test_core_tools_present(self):
         from tua_agent.rust_tools import RUST_TOOLS
@@ -141,11 +141,11 @@ class TestDashboard:
 
 
 class TestNewTools:
-    """Tests for the four newly added Rust tools."""
+    """Tests for the newly added Rust tools."""
 
-    def test_13_tools_total(self):
+    def test_14_tools_total(self):
         from tua_agent.rust_tools import RUST_TOOLS
-        assert len(RUST_TOOLS) == 13
+        assert len(RUST_TOOLS) == 14
 
     def test_cargo_bench_present(self):
         from tua_agent.rust_tools import get_rust_tool_names
