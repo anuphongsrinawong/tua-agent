@@ -1,0 +1,6 @@
+[package]
+name = "run_parallel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
