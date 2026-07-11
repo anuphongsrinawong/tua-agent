@@ -43,6 +43,10 @@
 - `/sessions` command to manage tabs (list, switch, close)
 - Session state preserved per tab (messages, profile, model, edit history)
 
+## Fixes
+
+- **GLM-5.2 reasoning_content fallback** - reasoning-only models (e.g. GLM-5.2) emit their whole response via reasoning_content deltas and leave content empty. Both the chat-completions and Responses-API stream parsers now fall back to the accumulated thinking text, so the agent receives the real answer instead of an empty string (src/tau_ai/openai_compatible.py).
+
 ## All 12 Features Complete
 
 | # | Feature | Status |

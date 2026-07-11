@@ -7,4 +7,4 @@ Tua extends Tau's agent harness with deep Rust knowledge:
 - Web dashboard for Rust project health
 """
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"

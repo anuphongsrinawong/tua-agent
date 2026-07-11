@@ -1,5 +1,5 @@
 <p align="center">
-  <strong>🦀 Tua Agent v0.0.1</strong><br/>
+  <strong>🦀 Tua Agent v0.0.2</strong><br/>
   <em>A Rust-specialized AI coding agent — built on Tau</em>
 </p>
 

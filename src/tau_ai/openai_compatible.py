@@ -305,6 +305,7 @@ class _ChatStreamParser:
         self.emitted_content = False
         self.fatal = False
         self._content_parts: list[str] = []
+        self._thinking_parts: list[str] = []
         self._tool_call_builders: dict[int, _ToolCallBuilder] = {}
         self._finish_reason: str | None = None
 
@@ -336,6 +337,7 @@ class _ChatStreamParser:
         thinking = _thinking_delta_text(delta)
         if thinking:
             self.emitted_content = True
+            self._thinking_parts.append(thinking)
             events.append(ProviderThinkingDeltaEvent(delta=thinking))
 
         for tool_call_delta in _tool_call_deltas(delta):
@@ -353,10 +355,17 @@ class _ChatStreamParser:
         events: list[ProviderEvent] = [
             ProviderToolCallEvent(tool_call=tool_call) for tool_call in tool_calls
         ]
+        # Some reasoning models (e.g. GLM-5.2) emit their entire response via
+        # `reasoning_content` deltas and leave `content` empty.  Fall back to
+        # the accumulated thinking text so the agent sees the real answer
+        # instead of an empty string.
+        content = "".join(self._content_parts)
+        if not content:
+            content = "".join(self._thinking_parts)
         events.append(
             ProviderResponseEndEvent(
                 message=AssistantMessage(
-                    content="".join(self._content_parts), tool_calls=tool_calls
+                    content=content, tool_calls=tool_calls
                 ),
                 finish_reason=self._finish_reason,
             )
@@ -371,6 +380,7 @@ class _ResponsesStreamParser:
         self.emitted_content = False
         self.fatal = False
         self._content_parts: list[str] = []
+        self._thinking_parts: list[str] = []
         self._tool_call_builders: dict[str, _ResponsesToolCallBuilder] = {}
         self._status: str | None = None
 
@@ -402,6 +412,7 @@ class _ResponsesStreamParser:
             delta = chunk.get("delta")
             if isinstance(delta, str) and delta:
                 self.emitted_content = True
+                self._thinking_parts.append(delta)
                 return [ProviderThinkingDeltaEvent(delta=delta)], False
 
         elif chunk_type == "response.output_item.added":
@@ -456,10 +467,15 @@ class _ResponsesStreamParser:
             ProviderToolCallEvent(tool_call=tool_call) for tool_call in tool_calls
         ]
         finish_reason = _normalize_finish_reason(self._status, has_tool_calls=bool(tool_calls))
+        # Reasoning-only models may put everything in reasoning_text; fall back
+        # to thinking text when no explicit content was produced.
+        content = "".join(self._content_parts)
+        if not content:
+            content = "".join(self._thinking_parts)
         events.append(
             ProviderResponseEndEvent(
                 message=AssistantMessage(
-                    content="".join(self._content_parts), tool_calls=tool_calls
+                    content=content, tool_calls=tool_calls
                 ),
                 finish_reason=finish_reason,
             )

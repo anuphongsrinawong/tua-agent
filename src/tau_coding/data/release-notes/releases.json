@@ -1,5 +1,17 @@
 [
   {
+    "version": "0.0.2",
+    "date": "2026-07-11",
+    "sections": {
+      "New": [
+        "Tua Agent v0.0.2: real diff viewer (#8), permission dialog (#10), interactive command palette (Ctrl+P, #11), and multi-session tabs (#12)."
+      ],
+      "Fixed": [
+        "GLM-5.2 reasoning_content fallback: reasoning-only models now return their answer instead of an empty string."
+      ]
+    }
+  },
+  {
     "version": "0.1.5",
     "date": "2026-07-09",
     "sections": {

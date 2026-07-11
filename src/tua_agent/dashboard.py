@@ -177,7 +177,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         </div>
     </main>
     <footer>
-        🦀 Tua Agent v0.0.1 · Built on Tau · Rust ❤️
+        🦀 Tua Agent v0.0.2 · Built on Tau · Rust ❤️
     </footer>
     <script>
         // Auto-refresh every 5 seconds

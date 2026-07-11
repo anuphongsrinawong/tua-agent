@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "tua-agent"
-version = "0.0.1"
+version = "0.0.2"
 description = "🦀 Tua Agent — A Rust-specialized AI coding agent built on Tau. 13 Rust tools, 10 skills, 8 coding profiles, web dashboard."
 readme = "README.md"
 license = "MIT"
