@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import re
+import subprocess
 from collections import deque
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Sequence
 from contextlib import suppress
 from dataclasses import dataclass, field
 from inspect import isawaitable
 from typing import Literal
 
-from tau_agent.events import AgentEvent, MessageEndEvent, MessageStartEvent, QueueUpdateEvent
+from tau_agent.events import AgentEndEvent, AgentEvent, MessageEndEvent, MessageStartEvent, QueueUpdateEvent
 from tau_agent.loop import run_agent_loop
 from tau_agent.messages import AgentMessage, AssistantMessage, ToolResultMessage, UserMessage
 from tau_agent.tools import AgentTool
@@ -17,6 +19,160 @@ from tau_ai.provider import ModelProvider
 
 EventListener = Callable[[AgentEvent], Awaitable[None] | None]
 QueueMode = Literal["one_at_a_time", "all"]
+
+
+# ── Self-correction (#13) + multi-agent review (#19) data + defaults ─────────
+
+
+@dataclass(slots=True)
+class CargoCheckResult:
+    """Outcome of a `cargo check` run for the self-correction hook (#13)."""
+
+    ok: bool
+    output: str
+
+
+@dataclass(slots=True)
+class ReviewFinding:
+    """A single finding from the reviewer sub-agent (#19)."""
+
+    severity: str  # "error" | "warning" | "info"
+    file: str
+    line: int
+    message: str
+
+
+def default_detect_rust_edits(
+    messages: Sequence[AgentMessage], since_index: int = 0
+) -> list[str]:
+    """Return the ``.rs`` paths touched by tool calls since ``since_index``.
+
+    Scans both assistant tool-call requests (their arguments) and tool-result
+    messages (their ``data["path"]``) so it works regardless of which provider
+    or coding tool made the edit. Duplicates are removed while preserving order.
+    """
+    seen: set[str] = set()
+    paths: list[str] = []
+    for message in messages[since_index:]:
+        if isinstance(message, AssistantMessage):
+            for tool_call in message.tool_calls:
+                for value in tool_call.arguments.values():
+                    if isinstance(value, str) and value.endswith(".rs"):
+                        if value not in seen:
+                            seen.add(value)
+                            paths.append(value)
+        elif isinstance(message, ToolResultMessage):
+            data = message.data or {}
+            path = data.get("path")
+            if isinstance(path, str) and path.endswith(".rs") and path not in seen:
+                seen.add(path)
+                paths.append(path)
+    return paths
+
+
+def default_cargo_check(cwd: str | None = None) -> CargoCheckResult:
+    """Run ``cargo check`` synchronously and return its pass/fail + output (#13).
+
+    A missing toolchain or a non-Rust directory is treated as *pass* (no errors
+    to correct) so the self-correction loop never fires spuriously. The combined
+    stdout+stderr is returned so the model can read the compiler diagnostics.
+    """
+    try:
+        process = subprocess.run(  # noqa: S603 - argv is a fixed list
+            ["cargo", "check", "--message-format=short"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        return CargoCheckResult(ok=True, output="")
+    output = f"{process.stdout}{process.stderr}".strip()
+    return CargoCheckResult(ok=process.returncode == 0, output=output)
+
+
+# Clippy short-format lines look like:
+#   "src/lib.rs:7:5: error: expected one of ..., found `x`"
+#   "src/lib.rs:7:5: warning: ..."  (clippy lints)
+_CLIPPY_LINE = re.compile(r"^(.+?):(\d+):(\d+):\s*(error|warning):\s*(.*)$")
+
+
+def default_review_edits(
+    messages: Sequence[AgentMessage],
+    since_index: int = 0,
+    *,
+    cwd: str | None = None,
+) -> list[ReviewFinding]:
+    """Review the ``.rs`` files edited since ``since_index`` (#19).
+
+    Runs ``cargo clippy`` over the project (best-effort) and layers in a few
+    cheap heuristic checks for common Rust anti-patterns (bare ``unwrap``,
+    ``todo!``/``unimplemented!``, and ``unsafe`` blocks). Never raises: a missing
+    toolchain simply yields the heuristic findings.
+    """
+    findings: list[ReviewFinding] = []
+    edited = default_detect_rust_edits(messages, since_index)
+
+    # ── Clippy (compiler-grade diagnostics) ─────────────────────────────────
+    try:
+        process = subprocess.run(  # noqa: S603 - fixed argv
+            ["cargo", "clippy", "--message-format=short", "--", "-D", "warnings"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        combined = f"{process.stdout}{process.stderr}"
+        for raw in combined.splitlines():
+            match = _CLIPPY_LINE.match(raw.strip())
+            if not match:
+                continue
+            file_path, line, _col, severity, message = match.groups()
+            findings.append(
+                ReviewFinding(
+                    severity=severity,
+                    file=file_path,
+                    line=int(line),
+                    message=message,
+                )
+            )
+    except (FileNotFoundError, subprocess.SubprocessError):
+        pass  # no toolchain → fall back to heuristics only
+
+    # ── Cheap heuristic checks on the edited files ──────────────────────────
+    findings.extend(_heuristic_rust_findings(edited))
+    return findings
+
+
+def _heuristic_rust_findings(paths: Iterable[str]) -> list[ReviewFinding]:
+    """Flag obvious Rust anti-patterns (unwrap, todo!, unsafe) by line scan."""
+    patterns: tuple[tuple[str, str], ...] = (
+        (r"\.unwrap\s*\(", "bare .unwrap() — prefer proper error handling with Result and ?"),
+        (r"\.expect\s*\(", "bare .expect() — consider propagating errors with Result and ?"),
+        (r"\b(todo|unimplemented|unreachable)!\s*\(", "todo!/unimplemented!/unreachable! left in code"),
+        (r"\bunsafe\s+\{", "unsafe block present — document the safety invariant"),
+    )
+    results: list[ReviewFinding] = []
+    for raw_path in paths:
+        text = _read_text(raw_path)
+        if text is None:
+            continue
+        for index, line in enumerate(text.splitlines(), start=1):
+            for pattern, message in patterns:
+                if re.search(pattern, line):
+                    results.append(
+                        ReviewFinding(severity="warning", file=raw_path, line=index, message=message)
+                    )
+    return results
+
+
+def _read_text(path: str) -> str | None:
+    """Read a file's text, returning None when it cannot be read."""
+    try:
+        with open(path, encoding="utf-8") as handle:  # noqa: PTH123
+            return handle.read()
+    except OSError:
+        return None
 
 
 @dataclass(frozen=True, slots=True)

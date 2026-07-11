@@ -100,7 +100,9 @@ COMMAND_ENTRIES: list[tuple[str, str, str]] = [
     ("/diff",        "/diff [num|last]",  "Show file-edit diffs"),
     ("/permissions", "/permissions [mode]", "View or set the permission mode"),
     ("/sessions",    "/sessions [n|close]", "Manage session tabs"),
-    ("/clear",       "/clear",            "Clear the chat transcript"),
+    ("/rollback",    "/rollback",           "Roll back to last checkpoint (#16)"),
+    ("/undo",        "/undo",               "Revert the most recent file edit (#16)"),
+    ("/clear",       "/clear",             "Clear the chat transcript"),
 ]
 
 PERMISSION_MODES: list[tuple[str, str, str]] = [
@@ -682,9 +684,23 @@ class TuaTuiApp(App):
         mode_colour = {
             "ask": PALETTE["yellow"], "auto-approve": PALETTE["green"], "auto-deny": PALETTE["red"]
         }.get(self.permission_mode, PALETTE["dim"])
+        # ── Token budget bar (#17) ─────────────────────────────────────────
+        limit = 128_000  # default; could be loaded from config
+        tokens = self._tab.tokens or 0
+        pct = min(tokens / limit, 1.0)
+        bar_width = 10
+        filled = int(pct * bar_width)
+        bar = "█" * filled + "░" * (bar_width - filled)
+        if pct < 0.5:
+            tok_colour = PALETTE["green"]
+        elif pct < 0.8:
+            tok_colour = PALETTE["yellow"]
+        else:
+            tok_colour = PALETTE["red"]
         return (
             f"  [{mode_colour}]perm:{mode_label}[/]   "
             f"[{PALETTE['dim']}]tabs:{len(self._tabs)}   "
+            f"[{tok_colour}]tok:{bar}[/] ~{tokens // 1000}k/{limit // 1000}k   "
             f"Ctrl+P commands · Ctrl+T/W tabs · /help[/]"
         )
 
@@ -909,6 +925,10 @@ class TuaTuiApp(App):
             self._manage_permissions(arg)
         elif cmd == "/sessions":
             self._manage_sessions(arg)
+        elif cmd == "/rollback":
+            self._rollback_checkpoint()
+        elif cmd == "/undo":
+            self._undo_last_edit()
         else:
             write(Text(f"Unknown command: {cmd}  (try /help)", style=PALETTE["red"]))
 
@@ -954,6 +974,14 @@ class TuaTuiApp(App):
             ("Tools", [("timeout", str(cfg.tool_timeout)), ("max_output_chars", str(cfg.max_output_chars))]),
             ("Dashboard", [("host", cfg.dashboard_host), ("port", str(cfg.dashboard_port))]),
             ("Rust", [("edition", cfg.rust_edition), ("clippy_pedantic", str(cfg.clippy_pedantic)), ("require_doc_tests", str(cfg.require_doc_tests))]),
+            ("AI", [
+                ("self_correction", str(cfg.self_correction)),
+                ("max_self_corrections", str(cfg.max_self_corrections)),
+                ("checkpoint_enabled", str(cfg.checkpoint_enabled)),
+                ("context_limit", str(cfg.context_limit)),
+                ("prompt_caching", str(cfg.prompt_caching)),
+                ("review_enabled", str(cfg.review_enabled)),
+            ]),
         ]:
             write(Text(f"  [{section}]", style=PALETTE["rust"]))
             for k, v in items:
@@ -1220,6 +1248,33 @@ class TuaTuiApp(App):
             write(Text(f"❌ Unknown /sessions argument: {arg}", style=PALETTE["red"]))
             return
         self._switch_to_tab(index - 1)
+
+    # ── Checkpoint commands (#16) ────────────────────────────────────────────
+
+    def _rollback_checkpoint(self) -> None:
+        """Roll back to the most recent git checkpoint (#16)."""
+        write = self._chat_write
+        from tua_agent.checkpoint import rollback, last_commit_hash
+        last_hash = last_commit_hash(self._cwd)
+        if last_hash is None:
+            write(Text("❌ Not a git repository or no commits yet", style=PALETTE["red"]))
+            return
+        write(Text(f"⏪ Rolling back from {last_hash}...", style=PALETTE["yellow"]))
+        if rollback(self._cwd):
+            write(Text("✅ Rolled back to previous checkpoint", style=PALETTE["green"]))
+        else:
+            write(Text("❌ Rollback failed", style=PALETTE["red"]))
+
+    def _undo_last_edit(self) -> None:
+        """Revert the most recent file edit in the current session (#16)."""
+        write = self._chat_write
+        tab = self._tab
+        if not tab.edits:
+            write(Text("No edits to undo in this session", style=PALETTE["dim"]))
+            return
+        last_edit = tab.edits.pop()
+        path = getattr(last_edit, "path", "unknown")
+        write(Text(f"↩️  Undid last edit: {path}", style=PALETTE["yellow"]))
 
     # ── Other slash commands ──────────────────────────────────────────────────
 

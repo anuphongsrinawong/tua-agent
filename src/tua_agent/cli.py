@@ -64,6 +64,19 @@ def main(
         help="Resume a session by id ('last' for most recent, 'list' to choose)",
     ),
     cwd: str | None = typer.Option(None, "--cwd", help="Working directory"),
+    # ── AI intelligence flags (v0.0.2 #13 / #16 / #18 / #19) ──────────
+    no_self_correct: bool = typer.Option(
+        False, "--no-self-correct", help="Disable self-correction loop (#13)"
+    ),
+    no_checkpoint: bool = typer.Option(
+        False, "--no-checkpoint", help="Disable git checkpointing (#16)"
+    ),
+    no_cache: bool = typer.Option(
+        False, "--no-cache", help="Disable prompt caching (#18)"
+    ),
+    no_review: bool = typer.Option(
+        False, "--no-review", help="Disable multi-agent review (#19)"
+    ),
 ):
     """🦀 Tua Agent — Rust-specialized coding agent."""
     # If a subcommand was invoked, don't run main logic
@@ -229,6 +242,13 @@ def config(
         typer.echo(f"    edition = \"{cfg.rust_edition}\"")
         typer.echo(f"    clippy_pedantic = {str(cfg.clippy_pedantic).lower()}")
         typer.echo(f"    require_doc_tests = {str(cfg.require_doc_tests).lower()}")
+        typer.echo(f"  [ai]")
+        typer.echo(f"    self_correction = {str(cfg.self_correction).lower()}")
+        typer.echo(f"    max_self_corrections = {cfg.max_self_corrections}")
+        typer.echo(f"    checkpoint_enabled = {str(cfg.checkpoint_enabled).lower()}")
+        typer.echo(f"    context_limit = {cfg.context_limit}")
+        typer.echo(f"    prompt_caching = {str(cfg.prompt_caching).lower()}")
+        typer.echo(f"    review_enabled = {str(cfg.review_enabled).lower()}")
         typer.echo(f"\n  Config files:")
         typer.echo(f"    ~/.tua/config.toml          (user-global)")
         typer.echo(f"    <project>/.tua/config.toml  (project override)")
