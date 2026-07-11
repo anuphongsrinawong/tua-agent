@@ -28,7 +28,11 @@ tua_agent 🦀  →  tau_coding  →  tau_agent  →  tau_ai
 | 🔧 **13 Rust Tools** | cargo, rustc, rustfmt, clippy, rustup, audit, outdated, udeps, deny, bench, doc, test-doc, wasm-pack |
 | 📋 **8 Profiles** | Ferris, BorrowChecker, Rustacean, CargoCult, UnsafeFerris, TestCrab, DocCrab, Strict |
 | 📚 **10 Skills** | Ownership, lifetimes, async, error-handling, macros, testing, smart-pointers, concurrency, cargo-workspace, wasm |
-| 🖥️ **TUI** | Textual-based terminal interface with chat + project info |
+| 🖥️ **TUI** | Textual-based terminal interface with 12 features: chat, syntax highlight, file tree, diff viewer, command palette, multi-session tabs |
+| 🔒 **Permissions** | Interactive approve/deny dialog for file & shell operations |
+| 🎨 **Diff Viewer** | Line-by-line unified diff with Rust syntax highlighting |
+| ⌨️ **Command Palette** | Ctrl+P interactive search/filter for all slash commands |
+| 📑 **Multi-Session** | Tab-based sessions (Ctrl+T/W/Tab) — multiple profiles, independent context |
 | 🌐 **Dashboard** | Web UI for Rust project health (build status, clippy, LOC) |
 | 🐳 **systemd Service** | Auto-start dashboard on boot |
 
